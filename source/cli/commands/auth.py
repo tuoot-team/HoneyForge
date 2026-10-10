@@ -1,14 +1,38 @@
-from httpx import *
-from os import *
-from dotenv import load_dotenv
+from colorama import Fore, Style
 
-load_dotenv()
+import client
+from texts import LogoutSuccessText, MeErrorText, MsgApiError
 
-def auth_Login(password: str) -> str:
-    url = getenv("API_BASE") + "/api/v1/auth/login"
-    response = post(url, json={"password": password})
-    if response.status_code == 200:
-        token = response.json().get('access_token')
-        environ["ACCESS_TOKEN"] = token
-        return token
-    return None
+
+def auth_Login(password: str) -> str | None:
+	try:
+		data = client.post_Login(password)
+		return data.get("access_token")
+	except client.ApiError as exc:
+		if client.is_Debug():
+			print(f"[DEBUG] login failed: {exc}")
+		return None
+
+
+def cmd_Logout(_args) -> None:
+	try:
+		client.post_Logout()
+		print(Fore.YELLOW + LogoutSuccessText + Style.RESET_ALL)
+	except client.ApiError as exc:
+		client.clear_Token()
+		print(Fore.RED + MsgApiError.format(detail=str(exc)) + Style.RESET_ALL)
+
+
+def cmd_Me(_args) -> None:
+	try:
+		data = client.get_Me()
+		client.print_Json(data)
+	except client.ApiError as exc:
+		print(Fore.RED + MeErrorText.format(detail=str(exc)) + Style.RESET_ALL)
+
+
+def cmd_Health(_args) -> None:
+	try:
+		client.print_Json(client.get_Health())
+	except client.ApiError as exc:
+		print(Fore.RED + MsgApiError.format(detail=str(exc)) + Style.RESET_ALL)
