@@ -1,0 +1,2 @@
+Enrollment ловушки через device-code.
+start → confirm оператором → complete → выдача agent_token.

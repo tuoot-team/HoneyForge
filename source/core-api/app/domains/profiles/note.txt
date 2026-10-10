@@ -1,0 +1,2 @@
+Конструктор профилей ловушек.
+CRUD профилей, валидация блоков (services, banners, credentials, logging, mask), config_version/hash.

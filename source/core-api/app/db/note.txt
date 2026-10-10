@@ -1,0 +1,2 @@
+Слой базы данных.
+ORM-модели, declarative Base, создание engine/session, доступ к БД из хендлеров.

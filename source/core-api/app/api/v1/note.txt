@@ -1,0 +1,2 @@
+Эндпоинты API версии 1.
+Auth, profiles, traps, pairing, agent, events, health, mimicry-коллектор; сборка в router.
