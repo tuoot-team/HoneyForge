@@ -69,6 +69,14 @@ def main() -> int:
 		device_code = r.json()["device_code"]
 		print("[OK] pairing start", device_code)
 
+		r = client.get("/api/v1/pairing/", headers=headers, params={"status": "pending"})
+		if r.status_code != 200:
+			return fail(f"pairing list {r.status_code} {r.text}")
+		codes = {item["device_code"] for item in r.json().get("items", [])}
+		if device_code not in codes:
+			return fail(f"pairing list missing code {device_code}: {r.text}")
+		print("[OK] pairing list pending", r.json()["total"])
+
 		r = client.post(
 			"/api/v1/pairing/confirm",
 			headers=headers,

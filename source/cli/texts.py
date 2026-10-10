@@ -43,9 +43,15 @@ ProfileDeletedText = "Профиль удалён: {profile_id}"
 
 PairConfirmText = "Pairing подтверждён."
 
+PairListHeaderText = "Входящие pairing ({total}), status={status}:"
+
+PairListEmptyText = "Нет pairing со status={status}."
+
 TrapBoundText = "Профиль привязан к ловушке."
 
 EventsTailHintText = "Слушаю SSE /api/v1/events/stream (Ctrl+C - стоп)..."
+
+EventsTailStoppedText = "events-tail остановлен."
 
 HelpText = """Команды HoneyForge CLI:
 
@@ -65,6 +71,7 @@ HelpText = """Команды HoneyForge CLI:
   profile-delete <id>          - удалить профиль
 
 Pairing / ловушки:
+  pair-list [--status pending|confirmed|completed|expired|all]
   pair-confirm <device_code> [--name trap] [--profile-id UUID]
   traps-list                   - список ловушек и статусы
   trap-show <trap_id>

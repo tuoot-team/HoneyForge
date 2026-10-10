@@ -1,7 +1,7 @@
 from colorama import Fore, Style
 
 import client
-from texts import EventsTailHintText, MsgApiError
+from texts import EventsTailHintText, EventsTailStoppedText, MsgApiError
 
 
 def cmd_EventsList(args) -> None:
@@ -19,11 +19,12 @@ def cmd_EventsList(args) -> None:
 
 def cmd_EventsTail(_args) -> None:
 	print(Fore.YELLOW + EventsTailHintText + Style.RESET_ALL)
+	stream = client.stream_Events()
 	try:
-		for line in client.stream_Events():
+		for line in stream.lines():
 			if not line:
 				continue
-			# SSE: data: {...}
+			# SSE: data: {...} ; комментарии (: ping) глушим
 			if line.startswith("data:"):
 				print(line[5:].strip())
 			elif line.startswith(":"):
@@ -32,5 +33,8 @@ def cmd_EventsTail(_args) -> None:
 				print(line)
 	except KeyboardInterrupt:
 		print()
+		print(Fore.YELLOW + EventsTailStoppedText + Style.RESET_ALL)
 	except client.ApiError as exc:
 		print(Fore.RED + MsgApiError.format(detail=str(exc)) + Style.RESET_ALL)
+	finally:
+		stream.close()

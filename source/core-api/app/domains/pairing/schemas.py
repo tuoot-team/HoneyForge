@@ -28,3 +28,19 @@ class PairingCompleteOut(BaseModel):
 	trap_id: UUID
 	agent_token: str = Field(description="shown once; store on agent host")
 	status: PairingStatus
+
+
+class PairingSessionOut(BaseModel):
+
+	pairing_id: UUID
+	device_code: str
+	status: PairingStatus
+	trap_id: UUID | None = None
+	expires_at: datetime
+	created_at: datetime
+	completed_at: datetime | None = None
+
+
+class PairingListOut(BaseModel):
+	total: int
+	items: list[PairingSessionOut]

@@ -1,2 +1,3 @@
 Enrollment ловушки через device-code.
 start → confirm оператором → complete → выдача agent_token.
+Оператор смотрит входящие: GET /pairing/ (по умолчанию status=pending).

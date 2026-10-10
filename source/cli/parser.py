@@ -12,7 +12,13 @@ from commands.profiles import (
 	cmd_ProfileSchema,
 	cmd_ProfileShow,
 )
-from commands.traps import cmd_PairConfirm, cmd_TrapBind, cmd_TrapShow, cmd_TrapsList
+from commands.traps import (
+	cmd_PairConfirm,
+	cmd_PairList,
+	cmd_TrapBind,
+	cmd_TrapShow,
+	cmd_TrapsList,
+)
 from texts import HelpText, clear_Screen
 
 
@@ -61,6 +67,15 @@ def create_parser() -> argparse.ArgumentParser:
 	p_pd.set_defaults(func=cmd_ProfileDelete)
 
 	# pairing / traps
+	p_plist = sub.add_parser("pair-list", help="входящие запросы pairing")
+	p_plist.add_argument(
+		"--status",
+		default="pending",
+		choices=["pending", "confirmed", "completed", "expired", "all"],
+		help="фильтр статуса (default pending)",
+	)
+	p_plist.set_defaults(func=cmd_PairList)
+
 	p_pair = sub.add_parser("pair-confirm", help="подтвердить device_code агента")
 	p_pair.add_argument("device_code")
 	p_pair.add_argument("--name", default="trap", help="имя ловушки")

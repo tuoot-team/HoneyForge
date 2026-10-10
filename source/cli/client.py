@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import json
 import os
+import queue
+import threading
+from collections.abc import Iterator
 from typing import Any
 
 import httpx
@@ -86,20 +89,97 @@ def request_Api(
 	return response.json()
 
 
-def stream_Api(path: str, *, auth: bool = True, timeout: float | None = None):
-	url = get_BaseUrl() + path
-	headers: dict[str, str] = {"Accept": "text/event-stream"}
-	if auth:
-		token = get_Token()
-		if not token:
-			raise ApiError("нет ACCESS_TOKEN - сначала login")
-		headers["Authorization"] = f"Bearer {token}"
+class SseStream:
+	"""
+	SSE-чтение в фоне. Нужно, чтобы Ctrl+C на Windows не зависал
+	в блокирующем socket-read httpx (SIGINT там часто не доходит).
+	"""
 
-	with httpx.stream("GET", url, headers=headers, timeout=timeout) as response:
-		if response.status_code >= 400:
-			raise ApiError(response.read().decode("utf-8", errors="replace"), response.status_code)
-		for line in response.iter_lines():
-			yield line
+	def __init__(self, path: str, *, auth: bool = True):
+		self.path = path
+		self.auth = auth
+		self._queue: queue.Queue[Any] = queue.Queue()
+		self._stop = threading.Event()
+		self._client: httpx.Client | None = None
+		self._response: httpx.Response | None = None
+		self._thread: threading.Thread | None = None
+
+	def start(self) -> None:
+		self._thread = threading.Thread(target=self._run_Reader, name="sse-tail", daemon=True)
+		self._thread.start()
+
+	def lines(self) -> Iterator[str]:
+		"""Строки SSE; пустой get с таймаутом - чтобы main-thread ловил Ctrl+C."""
+		while not self._stop.is_set():
+			try:
+				item = self._queue.get(timeout=0.25)
+			except queue.Empty:
+				continue
+			if item is None:
+				return
+			if isinstance(item, ApiError):
+				raise item
+			if isinstance(item, Exception):
+				raise ApiError(f"SSE: {type(item).__name__}: {item}") from item
+			yield item
+
+	def close(self) -> None:
+		self._stop.set()
+		# закрытие response рвёт блокирующий iter_lines в воркере
+		response = self._response
+		client = self._client
+		try:
+			if response is not None:
+				response.close()
+		except Exception:
+			pass
+		try:
+			if client is not None:
+				client.close()
+		except Exception:
+			pass
+		if self._thread is not None and self._thread.is_alive():
+			self._thread.join(timeout=2.0)
+
+	def _run_Reader(self) -> None:
+		url = get_BaseUrl() + self.path
+		headers: dict[str, str] = {"Accept": "text/event-stream"}
+		if self.auth:
+			token = get_Token()
+			if not token:
+				self._queue.put(ApiError("нет ACCESS_TOKEN - сначала login"))
+				self._queue.put(None)
+				return
+			headers["Authorization"] = f"Bearer {token}"
+
+		try:
+			# read=None - ждём событие сколько нужно; выход через close()
+			timeout = httpx.Timeout(connect=30.0, read=None, write=30.0, pool=30.0)
+			self._client = httpx.Client(timeout=timeout)
+			with self._client.stream("GET", url, headers=headers) as response:
+				self._response = response
+				if response.status_code >= 400:
+					body = response.read().decode("utf-8", errors="replace")
+					self._queue.put(ApiError(body, response.status_code))
+					return
+				for line in response.iter_lines():
+					if self._stop.is_set():
+						break
+					self._queue.put(line)
+		except httpx.HTTPError as exc:
+			if not self._stop.is_set():
+				self._queue.put(ApiError(f"сеть: {type(exc).__name__}: {exc}"))
+		except Exception as exc:
+			if not self._stop.is_set():
+				self._queue.put(exc)
+		finally:
+			self._queue.put(None)
+
+
+def stream_Api(path: str, *, auth: bool = True) -> SseStream:
+	stream = SseStream(path, auth=auth)
+	stream.start()
+	return stream
 
 
 # --- auth ---
@@ -167,6 +247,11 @@ def delete_Profile(profile_id: str) -> None:
 
 # --- pairing / traps ---
 
+def list_Pairings(status: str = "pending") -> dict:
+	params = {"status": status}
+	return request_Api("GET", "/api/v1/pairing/", params=params)
+
+
 def confirm_Pairing(device_code: str, trap_name: str = "trap", profile_id: str | None = None) -> dict:
 	body: dict[str, Any] = {"device_code": device_code, "trap_name": trap_name}
 	if profile_id:
@@ -210,7 +295,7 @@ def list_Events(
 	return request_Api("GET", "/api/v1/events/", params=params)
 
 
-def stream_Events():
+def stream_Events() -> SseStream:
 	return stream_Api("/api/v1/events/stream")
 
 

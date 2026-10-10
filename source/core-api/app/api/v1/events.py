@@ -36,10 +36,12 @@ async def stream_Events_SSE(_operator: Operator):
 	"""SSE-лента для CLI tail / Web UI."""
 
 	async def event_generator():
-		# стартовый комментарий - некоторые прокси так держат соединение
 		yield ": connected\n\n"
 		async for payload in event_sse_hub.subscribe():
-			yield f"data: {payload}\n\n"
+			if payload is None:
+				yield ": ping\n\n"
+			else:
+				yield f"data: {payload}\n\n"
 
 	return StreamingResponse(
 		event_generator(),

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from typing import Annotated
-from uuid import UUID
 
 from fastapi import Depends, Header, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.config import get_Settings
@@ -15,14 +15,20 @@ from app.texts import MSG_AGENT_UNAUTHORIZED, MSG_AUTH_BAD_TOKEN, MSG_AUTH_REQUI
 
 DbSession = Annotated[Session, Depends(get_DbSession)]
 
+bearer_Scheme = HTTPBearer(auto_error=False)
+
 
 def require_Operator(
-	authorization: Annotated[str | None, Header()] = None,
+	credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_Scheme)] = None,
 ) -> str:
 	settings = get_Settings()
-	if not authorization or not authorization.lower().startswith("bearer "):
+	if credentials is None or not credentials.credentials:
 		raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=MSG_AUTH_REQUIRED)
-	token = authorization.split(" ", 1)[1].strip()
+	if credentials.scheme.lower() != "bearer":
+		raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=MSG_AUTH_REQUIRED)
+	token = credentials.credentials.strip()
+	if not token:
+		raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=MSG_AUTH_REQUIRED)
 	if not verify_OperatorToken(settings.OPERATOR_TOKEN_SECRET, token):
 		raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=MSG_AUTH_BAD_TOKEN)
 	return "operator"

@@ -22,17 +22,19 @@ class EventSseHub:
 			if queue in self._subscribers:
 				self._subscribers.remove(queue)
 
-	async def subscribe(self) -> AsyncIterator[str]:
+	async def subscribe(self, *, ping_interval_sec: float = 15.0) -> AsyncIterator[str | None]:
 		queue: asyncio.Queue[str] = asyncio.Queue(maxsize=256)
 		self._subscribers.append(queue)
 		try:
 			while True:
-				item = await queue.get()
-				yield item
+				try:
+					item = await asyncio.wait_for(queue.get(), timeout=ping_interval_sec)
+					yield item
+				except asyncio.TimeoutError:
+					yield None
 		finally:
 			if queue in self._subscribers:
 				self._subscribers.remove(queue)
 
 
-# один хаб на процесс API
 event_sse_hub = EventSseHub()

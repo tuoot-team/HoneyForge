@@ -11,6 +11,8 @@ from app.db import models
 from app.domains.pairing.schemas import (
 	PairingCompleteOut,
 	PairingConfirmIn,
+	PairingListOut,
+	PairingSessionOut,
 	PairingStartOut,
 	PairingStatus,
 )
@@ -22,6 +24,50 @@ from app.texts import (
 	MSG_PAIRING_NOT_READY,
 	MSG_PROFILE_NOT_FOUND,
 )
+
+
+def _as_Utc(dt: datetime) -> datetime:
+	if dt.tzinfo is None:
+		return dt.replace(tzinfo=timezone.utc)
+	return dt
+
+
+def _expire_Stale_Pairings(db: Session, now: datetime) -> None:
+	rows = (
+		db.query(models.PairingSession)
+		.filter(models.PairingSession.status.in_(("pending", "confirmed")))
+		.filter(models.PairingSession.expires_at < now)
+		.all()
+	)
+	if not rows:
+		return
+	for row in rows:
+		row.status = "expired"
+	db.commit()
+
+
+def _to_SessionOut(row: models.PairingSession) -> PairingSessionOut:
+	return PairingSessionOut(
+		pairing_id=row.id,
+		device_code=row.device_code,
+		status=PairingStatus(row.status),
+		trap_id=row.trap_id,
+		expires_at=row.expires_at,
+		created_at=row.created_at,
+		completed_at=row.completed_at,
+	)
+
+
+def list_Pairings(db: Session, status_filter: str | None = "pending") -> PairingListOut:
+	now = datetime.now(timezone.utc)
+	_expire_Stale_Pairings(db, now)
+
+	query = db.query(models.PairingSession)
+	if status_filter and status_filter != "all":
+		query = query.filter(models.PairingSession.status == status_filter)
+	rows = query.order_by(models.PairingSession.created_at.desc()).all()
+	items = [_to_SessionOut(row) for row in rows]
+	return PairingListOut(total=len(items), items=items)
 
 
 def start_Pairing(db: Session) -> PairingStartOut:
@@ -65,13 +111,17 @@ def confirm_Pairing(db: Session, body: PairingConfirmIn) -> dict:
 	if row is None:
 		raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=MSG_PAIRING_BAD_CODE)
 
-	expires = row.expires_at
-	if expires.tzinfo is None:
-		expires = expires.replace(tzinfo=timezone.utc)
+	expires = _as_Utc(row.expires_at)
 	if expires < now or row.status == "expired":
 		row.status = "expired"
 		db.commit()
 		raise HTTPException(status_code=status.HTTP_410_GONE, detail=MSG_PAIRING_EXPIRED)
+
+	if row.status != "pending":
+		raise HTTPException(
+			status_code=status.HTTP_409_CONFLICT,
+			detail=f"pairing уже в статусе {row.status}",
+		)
 
 	if body.profile_id is not None:
 		profile = db.get(models.Profile, body.profile_id)
@@ -108,9 +158,7 @@ def complete_Pairing(db: Session, pairing_id: UUID) -> PairingCompleteOut:
 	if row is None:
 		raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=MSG_PAIRING_NOT_FOUND)
 
-	expires = row.expires_at
-	if expires.tzinfo is None:
-		expires = expires.replace(tzinfo=timezone.utc)
+	expires = _as_Utc(row.expires_at)
 	if expires < now:
 		row.status = "expired"
 		db.commit()
