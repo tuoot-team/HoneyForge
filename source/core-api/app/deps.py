@@ -19,7 +19,6 @@ DbSession = Annotated[Session, Depends(get_DbSession)]
 def require_Operator(
 	authorization: Annotated[str | None, Header()] = None,
 ) -> str:
-	"""Bearer-токен оператора после /auth/login."""
 	settings = get_Settings()
 	if not authorization or not authorization.lower().startswith("bearer "):
 		raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=MSG_AUTH_REQUIRED)

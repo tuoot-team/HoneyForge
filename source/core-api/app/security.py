@@ -8,7 +8,6 @@ from base64 import urlsafe_b64decode, urlsafe_b64encode
 
 
 def hash_Secret(raw: str) -> str:
-	"""SHA-256 hex для хранения agent_token / registration_token."""
 	return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
@@ -22,7 +21,6 @@ def generate_DeviceCode() -> str:
 
 
 def sign_OperatorToken(secret: str, ttl_sec: int = 86400) -> str:
-	"""Простой HMAC-токен: exp.ts.sig (без внешних JWT-зависимостей)."""
 	expires_at = int(time.time()) + ttl_sec
 	payload = f"operator:{expires_at}"
 	sig = hmac.new(secret.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).digest()

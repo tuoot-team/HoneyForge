@@ -11,7 +11,7 @@ class Settings(BaseSettings):
 	)
 
 	DEBUG: bool = False
-	# true = локальная SQLite без Docker/Postgres (фаза 1 удобно гонять на ноуте)
+	# true = локальная SQLite без Docker/Postgres
 	USE_SQLITE: bool = False
 
 	API_HOST: str = "0.0.0.0"
