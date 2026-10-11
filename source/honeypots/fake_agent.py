@@ -32,14 +32,11 @@ TEXT_FIRE_DONE = "Отправлено событий: {count} (preset=both)"
 TEXT_HTTP_ERR = "HTTP {status}: {body}"
 TEXT_PAIR_TIMEOUT = "таймаут ожидания confirm ({wait_sec}s). Код был: {code}"
 
-
 def is_Debug() -> bool:
 	return os.getenv("DEBUG", "false").lower() in ("1", "true", "yes")
 
-
 def get_BaseUrl() -> str:
 	return os.getenv("API_BASE", "http://127.0.0.1:8000").rstrip("/")
-
 
 def get_TokenFile() -> Path:
 	env_path = os.getenv("FAKE_AGENT_STATE")
@@ -47,23 +44,18 @@ def get_TokenFile() -> Path:
 		return Path(env_path)
 	return TOKEN_FILE
 
-
 def debug_Log(message: str) -> None:
 	if is_Debug():
 		print(f"[DEBUG] {message}")
-
 
 def fail_Exit(message: str, code: int = 1) -> None:
 	print(f"[ERR] {message}", file=sys.stderr)
 	raise SystemExit(code)
 
-
 def now_Iso() -> str:
 	return datetime.now(timezone.utc).isoformat()
 
-
 class FakeAgentClient:
-	"""HTTP-клиент под контракт агента core-api."""
 
 	def __init__(self, base_url: str, agent_token: str | None = None):
 		self.base_url = base_url.rstrip("/")
@@ -108,7 +100,6 @@ class FakeAgentClient:
 		return self.request_Json("POST", "/api/v1/pairing/start")
 
 	def try_Complete_Pairing(self, pairing_id: str) -> dict | None:
-		"""Поллинг: 409 = ещё не confirm / уже завершён."""
 		url = self.base_url + f"/api/v1/pairing/{pairing_id}/complete"
 		response = self._client.post(url, headers=self._headers())
 		if response.status_code == 200:
@@ -130,7 +121,6 @@ class FakeAgentClient:
 			agent=True,
 		)
 
-
 def has_AgentToken(path: Path) -> bool:
 	if not path.exists():
 		return False
@@ -139,7 +129,6 @@ def has_AgentToken(path: Path) -> bool:
 	except (OSError, json.JSONDecodeError):
 		return False
 	return bool(data.get("agent_token"))
-
 
 def save_AgentState(path: Path, trap_id: str, agent_token: str) -> None:
 	payload = {
@@ -150,7 +139,6 @@ def save_AgentState(path: Path, trap_id: str, agent_token: str) -> None:
 	path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 	print(TEXT_TOKEN_SAVED.format(path=path))
 
-
 def load_AgentToken(path: Path) -> str:
 	data = json.loads(path.read_text(encoding="utf-8"))
 	token = data.get("agent_token")
@@ -159,9 +147,7 @@ def load_AgentToken(path: Path) -> str:
 	print(TEXT_TOKEN_LOADED.format(path=path, trap_id=data.get("trap_id", "?")))
 	return token
 
-
 def build_BothEvents() -> list[dict]:
-	"""Low + Mid события одной пачкой."""
 	low_ip = f"203.0.113.{random.randint(1, 250)}"
 	low_port = random.choice([22, 80, 443, 3306, 8080])
 	mid_ip = f"198.51.100.{random.randint(1, 250)}"
@@ -207,9 +193,7 @@ def build_BothEvents() -> list[dict]:
 		},
 	]
 
-
 def run_Pair(client: FakeAgentClient, state_path: Path) -> None:
-	"""start → poll complete → сохранить токен."""
 	started = client.start_Pairing()
 	pairing_id = str(started["pairing_id"])
 	device_code = started["device_code"]
@@ -232,9 +216,7 @@ def run_Pair(client: FakeAgentClient, state_path: Path) -> None:
 
 	fail_Exit(TEXT_PAIR_TIMEOUT.format(wait_sec=PAIR_WAIT_SEC, code=device_code))
 
-
 def run_Both(client: FakeAgentClient) -> None:
-	"""Heartbeat + события low и mid."""
 	hb = client.post_Heartbeat()
 	print(TEXT_HEARTBEAT_OK.format(version=hb.get("config_version")))
 
@@ -245,8 +227,18 @@ def run_Both(client: FakeAgentClient) -> None:
 	if is_Debug():
 		print(json.dumps(events, ensure_ascii=False, indent=2))
 
+def ensure_Utf8_Stdio() -> None:
+	for stream in (sys.stdout, sys.stderr):
+		reconfigure = getattr(stream, "reconfigure", None)
+		if reconfigure is None:
+			continue
+		try:
+			reconfigure(encoding="utf-8", errors="replace")
+		except (OSError, ValueError):
+			pass
 
 def main() -> None:
+	ensure_Utf8_Stdio()
 	state_path = get_TokenFile()
 	client = FakeAgentClient(get_BaseUrl())
 	try:
@@ -258,7 +250,6 @@ def main() -> None:
 			run_Pair(client, state_path)
 	finally:
 		client.close()
-
 
 if __name__ == "__main__":
 	main()

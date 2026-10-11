@@ -1,0 +1,5 @@
+# Хост ловушки может быть на Python 3.8: asyncssh новее 2.14 требует 3.10.
+httpx>=0.27,<1
+python-dotenv>=1.0,<2
+asyncssh==2.14.2
+cryptography>=39,<44

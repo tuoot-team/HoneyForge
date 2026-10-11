@@ -33,3 +33,5 @@ _pdf_extract.txt
 **/honeyforge_local.db
 source/core-api/_gen_*.py
 source/honeypots/.fake_agent_state.json
+source/honeypots/.ssh_host_key
+source/honeypots/events_buffer.db
