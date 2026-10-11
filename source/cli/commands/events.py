@@ -1,6 +1,7 @@
 from colorama import Fore, Style
 
 import client
+import display
 from texts import EventsTailHintText, EventsTailStoppedText, MsgApiError
 
 
@@ -12,7 +13,7 @@ def cmd_EventsList(args) -> None:
 			source_ip=args.source_ip,
 			limit=args.limit,
 		)
-		client.print_Json(data)
+		display.print_EventList(data)
 	except client.ApiError as exc:
 		print(Fore.RED + MsgApiError.format(detail=str(exc)) + Style.RESET_ALL)
 
@@ -26,11 +27,11 @@ def cmd_EventsTail(_args) -> None:
 				continue
 			# SSE: data: {...} ; комментарии (: ping) глушим
 			if line.startswith("data:"):
-				print(line[5:].strip())
+				display.print_SseDataLine(line[5:])
 			elif line.startswith(":"):
 				continue
 			else:
-				print(line)
+				display.print_SseDataLine(line)
 	except KeyboardInterrupt:
 		print()
 		print(Fore.YELLOW + EventsTailStoppedText + Style.RESET_ALL)

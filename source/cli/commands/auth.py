@@ -1,6 +1,7 @@
 from colorama import Fore, Style
 
 import client
+import display
 from texts import LogoutSuccessText, MeErrorText, MsgApiError
 
 
@@ -25,14 +26,13 @@ def cmd_Logout(_args) -> None:
 
 def cmd_Me(_args) -> None:
 	try:
-		data = client.get_Me()
-		client.print_Json(data)
+		display.print_Me(client.get_Me())
 	except client.ApiError as exc:
 		print(Fore.RED + MeErrorText.format(detail=str(exc)) + Style.RESET_ALL)
 
 
 def cmd_Health(_args) -> None:
 	try:
-		client.print_Json(client.get_Health())
+		display.print_Health(client.get_Health())
 	except client.ApiError as exc:
 		print(Fore.RED + MsgApiError.format(detail=str(exc)) + Style.RESET_ALL)

@@ -1,16 +1,19 @@
-from colorama import Fore, Style
+from colorama import Fore, Style, init as init_Colorama
 from dotenv import load_dotenv
 
 from commands.auth import auth_Login
 from parser import create_parser, execute_args
 from texts import (
+	CoreApiErrorText,
 	LoginSuccessText,
 	PasswordErrorText,
 	WelcomeText,
 	clear_Screen,
 	print_Logo,
 )
+from client import *
 
+init_Colorama()
 load_dotenv()
 
 
@@ -25,8 +28,16 @@ def run_Login() -> None:
 		else:
 			print(Fore.RED + PasswordErrorText + Style.RESET_ALL)
 
-
 def main() -> None:
+	print("HoneyForge CLI v0.1.0")
+	print("Проверка подключения к CoreAPI...")
+
+	try:
+		if get_Health().get("status") == "ok": pass
+	except Exception:
+		print(Fore.RED + CoreApiErrorText + Style.RESET_ALL)
+		return
+	
 	run_Login()
 	clear_Screen()
 	print_Logo()

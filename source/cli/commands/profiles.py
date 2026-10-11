@@ -6,6 +6,7 @@ from pathlib import Path
 from colorama import Fore, Style
 
 import client
+import display
 from texts import MsgApiError, ProfileCreatedText, ProfileDeletedText
 
 
@@ -38,22 +39,21 @@ def _build_SimpleBody(args) -> dict:
 
 def cmd_ProfileSchema(_args) -> None:
 	try:
-		client.print_Json(client.get_ProfileSchema())
+		display.print_ProfileSchema(client.get_ProfileSchema())
 	except client.ApiError as exc:
 		print(Fore.RED + MsgApiError.format(detail=str(exc)) + Style.RESET_ALL)
 
 
 def cmd_ProfileList(_args) -> None:
 	try:
-		items = client.list_Profiles()
-		client.print_Json(items)
+		display.print_ProfileList(client.list_Profiles())
 	except client.ApiError as exc:
 		print(Fore.RED + MsgApiError.format(detail=str(exc)) + Style.RESET_ALL)
 
 
 def cmd_ProfileShow(args) -> None:
 	try:
-		client.print_Json(client.get_Profile(args.profile_id))
+		display.print_Profile(client.get_Profile(args.profile_id))
 	except client.ApiError as exc:
 		print(Fore.RED + MsgApiError.format(detail=str(exc)) + Style.RESET_ALL)
 
@@ -71,7 +71,7 @@ def cmd_ProfileCreate(args) -> None:
 		client.validate_Profile(body)
 		created = client.create_Profile(body)
 		print(Fore.GREEN + ProfileCreatedText.format(profile_id=created.get("id")) + Style.RESET_ALL)
-		client.print_Json(created)
+		display.print_Profile(created)
 	except (client.ApiError, OSError, json.JSONDecodeError) as exc:
 		print(Fore.RED + MsgApiError.format(detail=str(exc)) + Style.RESET_ALL)
 

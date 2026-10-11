@@ -1,6 +1,7 @@
 from colorama import Fore, Style
 
 import client
+import display
 from texts import (
 	MsgApiError,
 	PairConfirmText,
@@ -19,19 +20,7 @@ def cmd_PairList(args) -> None:
 			print(Fore.YELLOW + PairListEmptyText.format(status=args.status) + Style.RESET_ALL)
 			return
 		print(Fore.CYAN + PairListHeaderText.format(total=total, status=args.status) + Style.RESET_ALL)
-		for item in items:
-			code = item.get("device_code", "?")
-			status = item.get("status", "?")
-			expires = item.get("expires_at", "")
-			created = item.get("created_at", "")
-			pairing_id = item.get("pairing_id", "")
-			print(
-				f"  {Fore.GREEN}{code}{Style.RESET_ALL}"
-				f"  status={status}"
-				f"  created={created}"
-				f"  expires={expires}"
-				f"  id={pairing_id}"
-			)
+		display.print_PairingList(items, total=total, status=args.status)
 	except client.ApiError as exc:
 		print(Fore.RED + MsgApiError.format(detail=str(exc)) + Style.RESET_ALL)
 
@@ -44,21 +33,21 @@ def cmd_PairConfirm(args) -> None:
 			profile_id=args.profile_id,
 		)
 		print(Fore.GREEN + PairConfirmText + Style.RESET_ALL)
-		client.print_Json(data)
+		display.print_PairConfirm(data)
 	except client.ApiError as exc:
 		print(Fore.RED + MsgApiError.format(detail=str(exc)) + Style.RESET_ALL)
 
 
 def cmd_TrapsList(_args) -> None:
 	try:
-		client.print_Json(client.list_Traps())
+		display.print_TrapList(client.list_Traps())
 	except client.ApiError as exc:
 		print(Fore.RED + MsgApiError.format(detail=str(exc)) + Style.RESET_ALL)
 
 
 def cmd_TrapShow(args) -> None:
 	try:
-		client.print_Json(client.get_Trap(args.trap_id))
+		display.print_Trap(client.get_Trap(args.trap_id))
 	except client.ApiError as exc:
 		print(Fore.RED + MsgApiError.format(detail=str(exc)) + Style.RESET_ALL)
 
@@ -67,6 +56,6 @@ def cmd_TrapBind(args) -> None:
 	try:
 		data = client.bind_TrapProfile(args.trap_id, args.profile_id)
 		print(Fore.GREEN + TrapBoundText + Style.RESET_ALL)
-		client.print_Json(data)
+		display.print_Trap(data)
 	except client.ApiError as exc:
 		print(Fore.RED + MsgApiError.format(detail=str(exc)) + Style.RESET_ALL)

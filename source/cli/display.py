@@ -1,0 +1,379 @@
+from __future__ import annotations
+
+import json
+from datetime import datetime
+from typing import Any
+
+from colorama import Fore, Style
+
+import client
+from texts import (
+	DispEmptyListText,
+	DispEventsHeaderText,
+	DispPairConfirmHintText,
+	DispProfilesHeaderText,
+	DispSchemaHeaderText,
+	DispTrapsHeaderText,
+	print_OpsLine,
+)
+
+
+def paint_Status(status: str | None) -> str:
+	raw = (status or "?").lower()
+	label = status or "?"
+	palette = {
+		"online": Fore.GREEN + Style.BRIGHT,
+		"completed": Fore.GREEN + Style.BRIGHT,
+		"confirmed": Fore.CYAN + Style.BRIGHT,
+		"pending": Fore.YELLOW + Style.BRIGHT,
+		"offline": Fore.RED + Style.BRIGHT,
+		"expired": Fore.RED,
+	}
+	color = palette.get(raw, Fore.WHITE)
+	return f"{color}{label}{Style.RESET_ALL}"
+
+
+def paint_Level(level: str | None) -> str:
+	raw = (level or "?").lower()
+	palette = {
+		"low": Fore.GREEN,
+		"medium": Fore.YELLOW,
+		"high": Fore.RED + Style.BRIGHT,
+	}
+	color = palette.get(raw, Fore.WHITE)
+	return f"{color}{level or '?'}{Style.RESET_ALL}"
+
+
+def paint_EventType(event_type: str | None) -> str:
+	raw = event_type or "?"
+	hot = ("auth_attempt", "login", "credential")
+	warm = ("http_request", "banner_grab", "port_connect")
+	if any(k in raw for k in hot):
+		color = Fore.RED + Style.BRIGHT
+	elif any(k in raw for k in warm):
+		color = Fore.YELLOW
+	else:
+		color = Fore.CYAN
+	return f"{color}{raw}{Style.RESET_ALL}"
+
+
+def short_Id(value: Any, *, width: int = 8) -> str:
+	text = str(value or "")
+	if not text or text == "None":
+		return "-"
+	if len(text) <= width:
+		return text
+	return text[:width]
+
+
+def format_Time(value: Any) -> str:
+	if value is None or value == "":
+		return "-"
+	text = str(value).strip()
+	if text.endswith("Z"):
+		text = text[:-1] + "+00:00"
+	try:
+		dt = datetime.fromisoformat(text)
+		return dt.strftime("%Y-%m-%d %H:%M:%S")
+	except ValueError:
+		return str(value)
+
+
+def print_Section(title: str) -> None:
+	print()
+	print(Fore.CYAN + Style.BRIGHT + title + Style.RESET_ALL)
+	print(Fore.CYAN + ("-" * min(56, max(12, len(title)))) + Style.RESET_ALL)
+
+
+def print_Empty(what: str) -> None:
+	print(Fore.YELLOW + DispEmptyListText.format(what=what) + Style.RESET_ALL)
+
+
+def maybe_Print_RawJson(data: Any) -> None:
+	if not client.is_Debug():
+		return
+	print(Style.DIM + "[DEBUG] raw json:" + Style.RESET_ALL)
+	print(Style.DIM + json.dumps(data, ensure_ascii=False, indent=2, default=str) + Style.RESET_ALL)
+
+
+def print_Health(data: dict) -> None:
+	print_Section("health")
+	status = data.get("status", "?")
+	ok = str(status).lower() in ("ok", "healthy", "up")
+	status_paint = (Fore.GREEN if ok else Fore.RED) + str(status) + Style.RESET_ALL
+	print_OpsLine("status", status_paint)
+	for key, value in data.items():
+		if key == "status":
+			continue
+		print_OpsLine(key, str(value))
+	maybe_Print_RawJson(data)
+
+
+def print_Me(data: dict) -> None:
+	print_Section("operator")
+	print_OpsLine("role", str(data.get("role", "?")))
+	for key, value in data.items():
+		if key == "role":
+			continue
+		print_OpsLine(key, str(value))
+	maybe_Print_RawJson(data)
+
+
+def print_ProfileList(items: list) -> None:
+	if not items:
+		print_Empty("профилей")
+		return
+	print_Section(DispProfilesHeaderText.format(total=len(items)))
+	print(
+		f"  {Style.DIM}"
+		f"{'id':<10} {'level':<8} {'ver':>4}  name"
+		f"{Style.RESET_ALL}"
+	)
+	for item in items:
+		pid = short_Id(item.get("id"))
+		level = paint_Level(item.get("interaction_level"))
+		ver = item.get("config_version", "?")
+		name = item.get("name", "?")
+		raw_level = str(item.get("interaction_level") or "?")
+		pad = " " * max(0, 8 - len(raw_level))
+		print(f"  {Fore.GREEN}{pid:<10}{Style.RESET_ALL}{level}{pad} {ver:>4}  {Style.BRIGHT}{name}{Style.RESET_ALL}")
+	maybe_Print_RawJson(items)
+
+
+def _print_Services(services: list) -> None:
+	if not services:
+		print_OpsLine("services", "-")
+		return
+	print_OpsLine("services", str(len(services)))
+	for svc in services:
+		enabled = svc.get("enabled", True)
+		mark = Fore.GREEN + "on " if enabled else Style.DIM + "off"
+		name = svc.get("name", "?")
+		port = svc.get("port", "?")
+		proto = svc.get("protocol", "tcp")
+		print(
+			f"    {mark}{Style.RESET_ALL} "
+			f"{Fore.YELLOW}{name}{Style.RESET_ALL} "
+			f"{proto}/{Fore.CYAN}{port}{Style.RESET_ALL}"
+		)
+
+
+def _print_Banners(banners: list) -> None:
+	if not banners:
+		print_OpsLine("banners", "-")
+		return
+	print_OpsLine("banners", str(len(banners)))
+	for banner in banners:
+		svc = banner.get("service", "?")
+		text = banner.get("text", "")
+		print(f"    {Fore.YELLOW}{svc}{Style.RESET_ALL}  {text}")
+
+
+def _print_Credentials(creds: list) -> None:
+	if not creds:
+		print_OpsLine("creds", "-")
+		return
+	print_OpsLine("creds", str(len(creds)))
+	for cred in creds:
+		user = cred.get("username", "?")
+		password = cred.get("password", "?")
+		svc = cred.get("service") or "*"
+		print(
+			f"    {Fore.RED}{user}{Style.RESET_ALL}"
+			f":{Fore.RED}{password}{Style.RESET_ALL}"
+			f"  ({svc})"
+		)
+
+
+def _print_Mask(mask: dict) -> None:
+	if not mask:
+		print_OpsLine("mask", "-")
+		return
+	interval = mask.get("beacon_interval_sec", "?")
+	jitter = mask.get("jitter_pct", "?")
+	process = mask.get("process_name", "?")
+	print_OpsLine(
+		"mask",
+		f"interval={Fore.YELLOW}{interval}s{Style.RESET_ALL}  "
+		f"jitter={Fore.YELLOW}{jitter}%{Style.RESET_ALL}  "
+		f"proc={process}",
+	)
+	paths = mask.get("collector_path_set") or []
+	if paths:
+		print_OpsLine("paths", ", ".join(str(p) for p in paths))
+
+
+def print_Profile(data: dict) -> None:
+	print_Section(f"profile  {data.get('name', '?')}")
+	print_OpsLine("id", str(data.get("id", "?")))
+	print_OpsLine("level", paint_Level(data.get("interaction_level")))
+	print_OpsLine("version", str(data.get("config_version", "?")))
+	print_OpsLine("hash", short_Id(data.get("config_hash"), width=12))
+	desc = data.get("description") or ""
+	if desc:
+		print_OpsLine("desc", desc)
+	print_OpsLine("updated", format_Time(data.get("updated_at")))
+
+	blocks = data.get("blocks") or {}
+	_print_Services(blocks.get("services") or [])
+	_print_Banners(blocks.get("banners") or [])
+	_print_Credentials(blocks.get("credentials") or [])
+	_print_Mask(blocks.get("mask") or {})
+
+	logging = blocks.get("logging") or {}
+	if logging:
+		print_OpsLine(
+			"logging",
+			f"creds={logging.get('capture_credentials')}  "
+			f"payloads={logging.get('capture_payloads')}  "
+			f"delay={logging.get('auth_delay_ms_min')}-{logging.get('auth_delay_ms_max')}ms",
+		)
+	maybe_Print_RawJson(data)
+
+
+def print_ProfileSchema(data: dict) -> None:
+	print_Section(DispSchemaHeaderText)
+	levels = data.get("interaction_levels") or []
+	keys = data.get("block_keys") or []
+	print_OpsLine("levels", ", ".join(str(x) for x in levels))
+	print_OpsLine("blocks", ", ".join(str(x) for x in keys))
+	example = data.get("example")
+	if example:
+		print()
+		print(Style.DIM + "example:" + Style.RESET_ALL)
+		print_Profile(example if isinstance(example, dict) else {})
+	else:
+		maybe_Print_RawJson(data)
+
+
+def print_TrapList(items: list) -> None:
+	if not items:
+		print_Empty("ловушек")
+		return
+	print_Section(DispTrapsHeaderText.format(total=len(items)))
+	print(
+		f"  {Style.DIM}"
+		f"{'id':<10} {'status':<10} {'last_seen':<19}  name"
+		f"{Style.RESET_ALL}"
+	)
+	for item in items:
+		tid = short_Id(item.get("id"))
+		raw_status = str(item.get("status") or "?")
+		status = paint_Status(raw_status)
+		pad = " " * max(0, 10 - len(raw_status))
+		seen = format_Time(item.get("last_seen_at"))
+		name = item.get("name", "?")
+		print(
+			f"  {Fore.GREEN}{tid:<10}{Style.RESET_ALL}"
+			f"{status}{pad} {seen:<19}  {Style.BRIGHT}{name}{Style.RESET_ALL}"
+		)
+	maybe_Print_RawJson(items)
+
+
+def print_Trap(data: dict) -> None:
+	print_Section(f"trap  {data.get('name', '?')}")
+	print_OpsLine("id", str(data.get("id", "?")))
+	print_OpsLine("status", paint_Status(data.get("status")))
+	print_OpsLine("profile", str(data.get("profile_id") or "-"))
+	print_OpsLine("last_seen", format_Time(data.get("last_seen_at")))
+	print_OpsLine("created", format_Time(data.get("created_at")))
+	print_OpsLine("updated", format_Time(data.get("updated_at")))
+	meta = data.get("meta") or {}
+	if meta:
+		print_OpsLine("meta", json.dumps(meta, ensure_ascii=False, default=str))
+	maybe_Print_RawJson(data)
+
+
+def print_PairConfirm(data: dict) -> None:
+	print_Section("pairing confirm")
+	print_OpsLine("trap_id", str(data.get("trap_id", "?")))
+	print_OpsLine("pairing", str(data.get("pairing_id", "-")))
+	print_OpsLine("status", paint_Status(data.get("status")))
+	if data.get("profile_id"):
+		print_OpsLine("profile", str(data.get("profile_id")))
+	if data.get("stale_minutes") is not None:
+		print_OpsLine("stale", f"{data.get('stale_minutes')} min")
+	print(Fore.YELLOW + DispPairConfirmHintText + Style.RESET_ALL)
+	maybe_Print_RawJson(data)
+
+
+def print_PairingList(items: list, *, total: int, status: str) -> None:
+	for item in items:
+		code = item.get("device_code", "?")
+		st = paint_Status(item.get("status"))
+		expires = format_Time(item.get("expires_at"))
+		created = format_Time(item.get("created_at"))
+		pairing_id = short_Id(item.get("pairing_id") or item.get("id"))
+		print(
+			f"  {Fore.GREEN}{Style.BRIGHT}{code}{Style.RESET_ALL}"
+			f"  {st}"
+			f"  created={created}"
+			f"  expires={Fore.YELLOW}{expires}{Style.RESET_ALL}"
+			f"  id={pairing_id}"
+		)
+	maybe_Print_RawJson({"total": total, "status": status, "items": items})
+
+
+def _payload_Summary(payload: dict | None) -> str:
+	if not payload:
+		return ""
+	parts: list[str] = []
+	for key in ("username", "password", "service", "path", "method", "port", "banner"):
+		if key in payload and payload[key] not in (None, ""):
+			val = payload[key]
+			if key in ("username", "password"):
+				parts.append(f"{key}={Fore.RED}{val}{Style.RESET_ALL}")
+			elif key == "path":
+				parts.append(f"{key}={Fore.YELLOW}{val}{Style.RESET_ALL}")
+			else:
+				parts.append(f"{key}={val}")
+	if not parts:
+		extra = {k: v for k, v in payload.items() if k not in ("raw",)}
+		if extra:
+			return json.dumps(extra, ensure_ascii=False, default=str)[:80]
+	return "  ".join(parts)
+
+
+def print_EventRow(event: dict) -> None:
+	occurred = format_Time(event.get("occurred_at") or event.get("created_at"))
+	etype = paint_EventType(event.get("event_type"))
+	ip = event.get("source_ip") or "-"
+	port = event.get("source_port")
+	src = f"{Fore.CYAN}{ip}{Style.RESET_ALL}"
+	if port not in (None, ""):
+		src += f":{port}"
+	trap = short_Id(event.get("trap_id"))
+	summary = _payload_Summary(event.get("payload") or {})
+	eid = event.get("id", "")
+	id_part = f"{Style.DIM}#{eid}{Style.RESET_ALL} " if eid != "" else ""
+	print(f"  {id_part}{occurred}  {etype}  {src}  trap={trap}  {summary}")
+
+
+def print_EventList(data: dict) -> None:
+	items = data.get("items") or []
+	total = data.get("total", len(items))
+	if not items:
+		print_Empty("событий")
+		maybe_Print_RawJson(data)
+		return
+	print_Section(DispEventsHeaderText.format(shown=len(items), total=total))
+	for event in items:
+		print_EventRow(event)
+	maybe_Print_RawJson(data)
+
+
+def print_SseDataLine(raw: str) -> None:
+	text = raw.strip()
+	if not text:
+		return
+	try:
+		payload = json.loads(text)
+	except json.JSONDecodeError:
+		print(text)
+		return
+	if isinstance(payload, dict):
+		event = payload.get("event") if isinstance(payload.get("event"), dict) else payload
+		if event.get("event_type") or event.get("source_ip") is not None:
+			print_EventRow(event)
+			return
+	print(json.dumps(payload, ensure_ascii=False, default=str))

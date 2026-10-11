@@ -14,7 +14,6 @@ load_dotenv()
 
 
 class ApiError(Exception):
-	"""Ошибка ответа API или клиента."""
 
 	def __init__(self, message: str, status_code: int | None = None):
 		super().__init__(message)
@@ -90,10 +89,6 @@ def request_Api(
 
 
 class SseStream:
-	"""
-	SSE-чтение в фоне. Нужно, чтобы Ctrl+C на Windows не зависал
-	в блокирующем socket-read httpx (SIGINT там часто не доходит).
-	"""
 
 	def __init__(self, path: str, *, auth: bool = True):
 		self.path = path
@@ -109,7 +104,6 @@ class SseStream:
 		self._thread.start()
 
 	def lines(self) -> Iterator[str]:
-		"""Строки SSE; пустой get с таймаутом - чтобы main-thread ловил Ctrl+C."""
 		while not self._stop.is_set():
 			try:
 				item = self._queue.get(timeout=0.25)
@@ -125,7 +119,6 @@ class SseStream:
 
 	def close(self) -> None:
 		self._stop.set()
-		# закрытие response рвёт блокирующий iter_lines в воркере
 		response = self._response
 		client = self._client
 		try:
@@ -153,7 +146,6 @@ class SseStream:
 			headers["Authorization"] = f"Bearer {token}"
 
 		try:
-			# read=None - ждём событие сколько нужно; выход через close()
 			timeout = httpx.Timeout(connect=30.0, read=None, write=30.0, pool=30.0)
 			self._client = httpx.Client(timeout=timeout)
 			with self._client.stream("GET", url, headers=headers) as response:

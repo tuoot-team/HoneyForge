@@ -12,6 +12,7 @@ from commands.profiles import (
 	cmd_ProfileSchema,
 	cmd_ProfileShow,
 )
+from commands.setup import cmd_Guide, cmd_Setup
 from commands.traps import (
 	cmd_PairConfirm,
 	cmd_PairList,
@@ -19,7 +20,7 @@ from commands.traps import (
 	cmd_TrapShow,
 	cmd_TrapsList,
 )
-from texts import HelpText, clear_Screen
+from texts import HelpText, clear_Screen, print_Logo
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -32,6 +33,15 @@ def create_parser() -> argparse.ArgumentParser:
 
 	p_clear = sub.add_parser("clear", help="очистить экран")
 	p_clear.set_defaults(func=lambda _a: clear_Screen())
+
+	p_logo = sub.add_parser("logo", help="показать логотип")
+	p_logo.set_defaults(func=lambda _a: print_Logo())
+
+	p_setup = sub.add_parser("setup", help="пошаговый гайд: профиль → pairing → события")
+	p_setup.set_defaults(func=cmd_Setup)
+
+	p_guide = sub.add_parser("guide", help="алиас setup")
+	p_guide.set_defaults(func=cmd_Guide)
 
 	p_health = sub.add_parser("health", help="проверка API /health")
 	p_health.set_defaults(func=cmd_Health)
