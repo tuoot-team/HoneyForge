@@ -80,14 +80,44 @@ type TcpBannerModules struct {
 	Banner string `json:"banner"`
 }
 
+type DbBannerModule struct {
+	Enabled *bool  `json:"enabled"`
+	Version string `json:"version"`
+}
+
+type SessionModule struct {
+	Enabled       *bool `json:"enabled"`
+	MaxSessionSec int   `json:"max_session_sec"`
+}
+
+func (m SessionModule) IsEnabled() bool {
+	return m.Enabled == nil || *m.Enabled
+}
+
+func (m SessionModule) MaxSec() int {
+	if m.MaxSessionSec <= 0 {
+		return 120
+	}
+	return m.MaxSessionSec
+}
+
+type DbModules struct {
+	Banner  DbBannerModule `json:"banner"`
+	Auth    AuthModule     `json:"auth"`
+	Session SessionModule  `json:"session"`
+}
+
 type ServiceBlock struct {
-	Type        string           `json:"type"`
-	ID          string           `json:"id"`
-	Port        int              `json:"port"`
-	Enabled     *bool            `json:"enabled"`
-	SshModules  SshModules       `json:"-"`
-	HttpModules HttpModules      `json:"-"`
-	TcpModules  TcpBannerModules `json:"-"`
+	Type         string           `json:"type"`
+	ID           string           `json:"id"`
+	Port         int              `json:"port"`
+	Enabled      *bool            `json:"enabled"`
+	SshModules   SshModules       `json:"-"`
+	HttpModules  HttpModules      `json:"-"`
+	TcpModules   TcpBannerModules `json:"-"`
+	PgModules    DbModules        `json:"-"`
+	RedisModules DbModules        `json:"-"`
+	MysqlModules DbModules        `json:"-"`
 }
 
 func (s ServiceBlock) IsEnabled() bool {
@@ -123,6 +153,12 @@ func (s *ServiceBlock) UnmarshalJSON(data []byte) error {
 		return json.Unmarshal(wire.Modules, &s.HttpModules)
 	case "tcp_banner":
 		return json.Unmarshal(wire.Modules, &s.TcpModules)
+	case "postgres":
+		return json.Unmarshal(wire.Modules, &s.PgModules)
+	case "redis":
+		return json.Unmarshal(wire.Modules, &s.RedisModules)
+	case "mysql":
+		return json.Unmarshal(wire.Modules, &s.MysqlModules)
 	}
 	return nil
 }

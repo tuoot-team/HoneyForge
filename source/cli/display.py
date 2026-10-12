@@ -47,7 +47,7 @@ def paint_Level(level: str | None) -> str:
 
 def paint_EventType(event_type: str | None) -> str:
 	raw = event_type or "?"
-	hot = ("auth_attempt", "login", "credential")
+	hot = ("auth_attempt", "login", "credential", "db_command")
 	warm = ("http_request", "banner_grab", "port_connect")
 	if any(k in raw for k in hot):
 		color = Fore.RED + Style.BRIGHT
@@ -184,6 +184,19 @@ def _print_Services(services: list) -> None:
 			print(
 				f"        server={personality.get('server', '?')} "
 				f"auth={auth_label}"
+				f"{_format_AuthDelay(auth)}{_format_AuthRefs(auth)}"
+			)
+		elif name in ("postgres", "redis", "mysql"):
+			banner = modules.get("banner") or {}
+			auth = modules.get("auth") or {}
+			session = modules.get("session") or {}
+			auth_label = "off"
+			if auth.get("enabled", True):
+				auth_label = str(auth.get("mode") or "allow_all")
+			session_label = "on" if session.get("enabled", True) else "off"
+			print(
+				f"        version={banner.get('version', '')} "
+				f"auth={auth_label} session={session_label}"
 				f"{_format_AuthDelay(auth)}{_format_AuthRefs(auth)}"
 			)
 		elif name == "tcp_banner":
@@ -401,7 +414,7 @@ def _payload_Summary(payload: dict | None) -> str:
 	if not payload:
 		return ""
 	parts: list[str] = []
-	for key in ("username", "password", "command", "service", "path", "method", "port", "banner"):
+	for key in ("username", "password", "command", "database", "service", "path", "method", "port", "banner"):
 		if key in payload and payload[key] not in (None, ""):
 			val = payload[key]
 			if key in ("username", "password", "command"):

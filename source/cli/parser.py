@@ -79,8 +79,12 @@ def create_parser() -> argparse.ArgumentParser:
 	p_pc.add_argument(
 		"--service",
 		default="ssh",
-		choices=["ssh", "http", "https", "tcp_banner"],
+		choices=["ssh", "http", "https", "tcp_banner", "postgres", "redis", "mysql"],
 		help="тип сервиса (default ssh)",
+	)
+	p_pc.add_argument(
+		"--services",
+		help="несколько ловушек через запятую, порты стандартные",
 	)
 	p_pc.add_argument(
 		"--auth",

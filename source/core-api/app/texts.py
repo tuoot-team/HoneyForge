@@ -14,7 +14,7 @@ MSG_PROFILE_NOT_FOUND = "профиль не найден"
 MSG_PROFILE_HIGH_UNAVAILABLE = "уровень high недоступен: блок emulation ещё не подключён"
 MSG_PROFILE_LEVEL_MISMATCH = (
 	"interaction_level={declared} не совпадает с модулями (фактически {actual}). "
-	"low - только баннер, medium - вход, shell или http"
+	"low - только баннер, medium - вход, shell, http или база"
 )
 MSG_PROFILE_DUP_PORT = "порты включённых сервисов должны быть уникальными"
 MSG_PROFILE_DUP_SERVICE_ID = "id сервисов должны быть уникальными"

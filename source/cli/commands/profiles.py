@@ -20,11 +20,30 @@ from texts import (
 	ProfileHighUnavailableText,
 	ProfileHttpNeedsMediumText,
 	ProfileListedNeedsCredsText,
+	ProfileOnePortText,
 	ProfilePasswordRequiredText,
+	ProfilePortConflictText,
 	ProfileServiceUnknownText,
+	ProfileServicesNeedNameText,
 	ProfileUpdatedText,
 	ProfileUpdateUsageText,
 )
+
+KNOWN_SERVICES = ("ssh", "http", "tcp_banner", "postgres", "redis", "mysql")
+DB_SERVICES = ("postgres", "redis", "mysql")
+DEFAULT_PORTS = {
+	"ssh": 22,
+	"http": 8080,
+	"tcp_banner": 2121,
+	"postgres": 5432,
+	"redis": 6379,
+	"mysql": 3306,
+}
+DEFAULT_DB_BANNERS = {
+	"postgres": "14.10 (Ubuntu 14.10-0ubuntu0.22.04.1)",
+	"mysql": "5.7.42-log",
+	"redis": "6.2.14",
+}
 
 
 def _load_Body_FromFile(path: str) -> dict:
@@ -105,7 +124,7 @@ def _build_SimpleBody(args) -> dict:
 	service_name = (args.service or "ssh").lower()
 	if service_name == "https":
 		service_name = "http"
-	if service_name not in ("ssh", "http", "tcp_banner"):
+	if service_name not in KNOWN_SERVICES:
 		raise ValueError(ProfileServiceUnknownText)
 
 	credentials, credential_ids = _credential_Pair(args, service_name)
@@ -114,14 +133,14 @@ def _build_SimpleBody(args) -> dict:
 		raise ValueError(ProfileAuthOnBannerText)
 
 	auth_enabled = auth_mode != "off"
-	if service_name == "http":
+	if service_name == "http" or service_name in DB_SERVICES:
 		derived = "medium"
 	elif auth_enabled:
 		derived = "medium"
 	else:
 		derived = "low"
 	if level_arg and level_arg != derived:
-		if service_name == "http":
+		if service_name == "http" or service_name in DB_SERVICES:
 			raise ValueError(ProfileHttpNeedsMediumText)
 		if service_name == "tcp_banner" or not auth_enabled:
 			raise ValueError(ProfileBannerNeedsLowText)
@@ -187,6 +206,30 @@ def _build_SimpleBody(args) -> dict:
 				},
 			},
 		}
+	elif service_name in DB_SERVICES:
+		auth = {
+			"enabled": auth_enabled,
+			"mode": "allow_all" if not auth_enabled else auth_mode,
+			"credential_ids": credential_ids if auth_mode in ("allow_listed", "second_attempt_sticky") else [],
+			"delay_ms_min": delay_min,
+			"delay_ms_max": delay_max,
+		}
+		if auth_mode == "second_attempt_sticky":
+			auth["sticky_ttl_hours"] = args.sticky_ttl if args.sticky_ttl is not None else 72
+		service = {
+			"type": service_name,
+			"id": f"{service_name}-1",
+			"port": args.port,
+			"enabled": True,
+			"modules": {
+				"banner": {
+					"enabled": True,
+					"version": banner or DEFAULT_DB_BANNERS[service_name],
+				},
+				"auth": auth,
+				"session": {"enabled": True, "max_session_sec": 120},
+			},
+		}
 	else:
 		service = {
 			"type": "tcp_banner",
@@ -234,10 +277,88 @@ def cmd_ProfileShow(args) -> None:
 		print(Fore.RED + MsgApiError.format(detail=str(exc)) + Style.RESET_ALL)
 
 
+def _assert_UniquePorts(items: list[tuple[str, int]]) -> None:
+	seen: dict[int, str] = {}
+	for name, port in items:
+		if port in seen:
+			raise ValueError(ProfilePortConflictText.format(port=port, first=seen[port], second=name))
+		seen[port] = name
+
+
+def _build_MultiBody(args) -> dict:
+	if args.port is not None:
+		raise ValueError(ProfileOnePortText)
+	raw_names = [part.strip().lower() for part in (args.services or "").split(",") if part.strip()]
+	if not raw_names:
+		raise ValueError(ProfileServiceUnknownText)
+	names: list[str] = []
+	for name in raw_names:
+		if name == "https":
+			name = "http"
+		if name not in KNOWN_SERVICES:
+			raise ValueError(ProfileServiceUnknownText)
+		names.append(name)
+	_assert_UniquePorts([(name, DEFAULT_PORTS[name]) for name in names])
+	level_arg = (args.level or "").lower()
+	if level_arg == "high":
+		raise ValueError(ProfileHighUnavailableText)
+	credentials, credential_ids = _credential_Pair(args, "shared")
+	services = []
+	derived = "low"
+	for name in names:
+		piece = _build_SimpleBody(type("Args", (), {
+			"name": args.name,
+			"description": "",
+			"level": None,
+			"service": name,
+			"port": DEFAULT_PORTS[name],
+			"auth": args.auth,
+			"username": args.username,
+			"password": args.password,
+			"banner": args.banner,
+			"server": args.server,
+			"auth_path": args.auth_path,
+			"delay_min": args.delay_min,
+			"delay_max": args.delay_max,
+			"sticky_ttl": args.sticky_ttl,
+			"no_shell": args.no_shell,
+		})())
+		services.extend(piece["blocks"]["services"])
+		if piece["interaction_level"] == "medium":
+			derived = "medium"
+	if level_arg and level_arg != derived:
+		raise ValueError(ProfileHttpNeedsMediumText if derived == "medium" else ProfileBannerNeedsLowText)
+	if credentials and services:
+		for service in services:
+			auth = (service.get("modules") or {}).get("auth")
+			if isinstance(auth, dict) and auth.get("enabled") and auth.get("mode") in ("allow_listed", "second_attempt_sticky"):
+				auth["credential_ids"] = credential_ids
+	return {
+		"name": args.name,
+		"description": args.description or "",
+		"interaction_level": level_arg or derived,
+		"blocks": {
+			"services": services,
+			"credentials": credentials,
+			"logging": {
+				"capture_credentials": True,
+				"capture_payloads": True,
+				"capture_source_meta": True,
+			},
+			"mask": {},
+		},
+	}
+
+
 def cmd_ProfileCreate(args) -> None:
 	try:
 		if args.file:
 			body = _load_Body_FromFile(args.file)
+		elif args.services:
+			if not args.name:
+				print(Fore.RED + ProfileServicesNeedNameText + Style.RESET_ALL)
+				return
+			body = _build_MultiBody(args)
 		else:
 			if not args.name or not args.port:
 				print(Fore.RED + ProfileCreateUsageText + Style.RESET_ALL)

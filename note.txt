@@ -1,1 +1,21 @@
 Удалить агента: 
+dest=/opt/honeyforge
+if [ "$(id -u)" -ne 0 ]; then
+	dest="$HOME/.honeyforge"
+fi
+if [ -f "$dest/agent.pid" ]; then
+	kill "$(cat "$dest/agent.pid")" 2>/dev/null || true
+fi
+for d in /proc/[0-9]*; do
+	if [ "$(readlink "$d/exe" 2>/dev/null)" = "$dest/agent" ]; then
+		kill "${d#/proc/}" 2>/dev/null || true
+	fi
+done
+rm -rf "$dest"
+
+redis:
+printf '*1\r\n$4\r\nPING\r\n*2\r\n$4\r\nAUTH\r\n$8\r\npostgres\r\n*3\r\n$3\r\nSET\r\n$1\r\na\r\n$1\r\nb\r\n' | nc HOST 6379
+postgres: 
+PGPASSWORD=postgres psql "host=HOST port=5432 user=postgres dbname=postgres" -c "select version();"
+MySQL:
+mysql -h HOST -P 3306 -u postgres -ppostgres -e "select 1"

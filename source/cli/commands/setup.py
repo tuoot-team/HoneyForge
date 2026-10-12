@@ -54,7 +54,13 @@ from texts import (
 	SetupCoverUrlsDefault,
 	SetupProcessNameBadText,
 	SetupUserAgentDefault,
+	ProfilePortConflictText,
+	SetupAskTrapSetText,
 	SetupRoutesTipText,
+	SetupTrapListHelp,
+	SetupTrapProgressText,
+	SetupTrapSetBadText,
+	SetupTrapSetEmptyText,
 	SetupShellNeedsAuthText,
 	SetupSshCodeText,
 	SetupSshFailedText,
@@ -131,7 +137,47 @@ ROLE_PRESETS: dict[str, dict] = {
 		"auth_path": "/admin",
 		"sticky_ttl": 72,
 	},
+	"5": {
+		"key": "data-stores",
+		"label": "Postgres + Redis + MySQL",
+		"bundle": True,
+		"level": "medium",
+		"service": "postgres",
+		"port": 5432,
+		"banner": "14.10 (Ubuntu 14.10-0ubuntu0.22.04.1)",
+		"creds": True,
+		"username": "postgres",
+		"password": "postgres",
+		"auth_mode": "allow_listed",
+		"shell": False,
+		"fs_pack": "",
+		"auth_path": "/admin",
+		"sticky_ttl": 72,
+		"services": [
+			{"service": "postgres", "port": 5432, "banner": "14.10 (Ubuntu 14.10-0ubuntu0.22.04.1)"},
+			{"service": "redis", "port": 6379, "banner": "6.2.14"},
+			{"service": "mysql", "port": 3306, "banner": "5.7.42-log"},
+		],
+	},
 }
+
+DEFAULT_PORTS = {
+	"ssh": 22,
+	"http": 8080,
+	"tcp_banner": 2121,
+	"postgres": 5432,
+	"redis": 6379,
+	"mysql": 3306,
+}
+DEFAULT_BANNERS = {
+	"ssh": "SSH-2.0-OpenSSH_8.9p1",
+	"http": "nginx/1.24.0",
+	"tcp_banner": "220 ftp ready",
+	"postgres": "14.10 (Ubuntu 14.10-0ubuntu0.22.04.1)",
+	"mysql": "5.7.42-log",
+	"redis": "6.2.14",
+}
+KNOWN_SERVICES = tuple(DEFAULT_PORTS)
 
 
 def _ask(prompt: str, default: str | None = None) -> str | None:
@@ -176,25 +222,8 @@ def _status_Color(status: str) -> str:
 def _pick_Role() -> dict:
 	print(SetupRolePresetsHelp)
 	print_SetupTip(SetupStep1TipRole)
-	choice = _ask("Роль приманки (1-4)", "1") or "1"
-	preset = dict(ROLE_PRESETS.get(choice, ROLE_PRESETS["1"]))
-	if preset["key"] == "custom":
-		preset["service"] = (_ask("Сервис (ssh/http/tcp_banner)", "ssh") or "ssh").lower()
-		if preset["service"] == "https":
-			preset["service"] = "http"
-		if preset["service"] not in ("ssh", "http", "tcp_banner"):
-			preset["service"] = "ssh"
-		default_port = {"ssh": "22", "http": "8080", "tcp_banner": "2121"}[preset["service"]]
-		preset["port"] = _ask_Int("Порт", int(default_port), 1, 65535)
-		if preset["service"] == "tcp_banner":
-			preset["auth_mode"] = "off"
-			preset["shell"] = False
-			preset["banner"] = "220 ftp ready"
-		elif preset["service"] == "http":
-			preset["banner"] = "nginx/1.24.0"
-			preset["auth_mode"] = "allow_listed"
-			preset["shell"] = False
-	return preset
+	choice = _ask("Роль приманки (1-5)", "1") or "1"
+	return dict(ROLE_PRESETS.get(choice, ROLE_PRESETS["1"]))
 
 
 def _ask_Int(prompt: str, default: int, low: int, high: int) -> int:
@@ -263,8 +292,6 @@ def _ask_AuthModule(role: dict, service: str) -> dict:
 
 def _configure_Modules(role: dict) -> dict:
 	"""Слоты сервиса: banner/auth/shell или personality/auth/routes."""
-	_step_Header(SetupStep2Header)
-	print_SetupTip(SetupStep2TipService)
 	service = role["service"]
 	port = int(role["port"])
 	print_OpsLine("сервис", f"{service}:{port}")
@@ -273,8 +300,11 @@ def _configure_Modules(role: dict) -> dict:
 		print_OpsLine("модуль", "banner")
 		banner = _ask("Текст баннера", role.get("banner") or "220 ftp ready") or "220 ftp ready"
 		face = {
+			"service": service,
+			"port": port,
 			"banner": banner,
 			"credentials": [],
+			"credential_ids": [],
 			"auth_mode": "off",
 			"sticky_ttl": 72,
 			"shell_enabled": False,
@@ -302,6 +332,13 @@ def _configure_Modules(role: dict) -> dict:
 			if shell_enabled:
 				fs_pack = _ask("Пакет файловой системы", fs_pack) or fs_pack
 		level = "low" if auth["auth_mode"] == "off" else "medium"
+	elif service in ("postgres", "redis", "mysql"):
+		print_OpsLine("модуль", "banner")
+		banner = _ask("Версия", role.get("banner") or DEFAULT_BANNERS[service]) or DEFAULT_BANNERS[service]
+		auth = _ask_AuthModule(role, service)
+		shell_enabled = False
+		fs_pack = ""
+		level = "medium"
 	else:
 		print_OpsLine("модуль", "personality")
 		banner = _ask("Заголовок Server", role.get("banner") or "nginx/1.24.0") or "nginx/1.24.0"
@@ -312,9 +349,15 @@ def _configure_Modules(role: dict) -> dict:
 		fs_pack = ""
 		level = "medium"
 
+	linked_ids = []
+	if auth["auth_mode"] in ("allow_listed", "second_attempt_sticky"):
+		linked_ids = [item["id"] for item in auth["credentials"]]
 	face = {
+		"service": service,
+		"port": port,
 		"banner": banner,
 		"credentials": auth["credentials"],
+		"credential_ids": linked_ids,
 		"auth_mode": auth["auth_mode"],
 		"sticky_ttl": auth["sticky_ttl"],
 		"shell_enabled": shell_enabled,
@@ -384,47 +427,209 @@ def _ask_Stealth() -> dict:
 	}
 
 
-def _save_Profile(
-	trap_name: str,
-	role: dict,
-	face: dict,
-	stealth: dict,
-) -> tuple[str, str]:
-	profile_name = f"{role['key']}-{trap_name}"
-	service = role["service"]
-	port = int(role["port"])
-	level = face.get("level") or ("medium" if service == "http" else "low")
-	credentials = face.get("credentials") or []
-	credential_ids = [item["id"] for item in credentials]
+def _ask_FreePort(taken: set[int], default: int) -> int:
+	while True:
+		port = _ask_Int("Порт", default, 1, 65535)
+		if port not in taken:
+			return port
+		owner = "уже выбранная ловушка"
+		print_Attention(ProfilePortConflictText.format(port=port, first=owner, second="новая"))
+		default = port + 1 if port < 65535 else 1
+
+
+def _assert_TrapsFit(faces: list[dict]) -> None:
+	seen: dict[int, str] = {}
+	for face in faces:
+		port = int(face["port"])
+		name = str(face["service"])
+		if port in seen:
+			raise ValueError(ProfilePortConflictText.format(port=port, first=seen[port], second=name))
+		seen[port] = name
+
+
+TRAP_ORDER = ("ssh", "http", "tcp_banner", "postgres", "redis", "mysql")
+
+
+def _default_TrapNumbers(role: dict) -> str:
+	if role.get("bundle"):
+		numbers = []
+		for spec in role.get("services") or []:
+			service = spec["service"]
+			if service in TRAP_ORDER:
+				numbers.append(str(TRAP_ORDER.index(service) + 1))
+		if numbers:
+			return ",".join(numbers)
+	service = role.get("service") or "ssh"
+	if service not in TRAP_ORDER:
+		service = "ssh"
+	return str(TRAP_ORDER.index(service) + 1)
+
+
+def _parse_TrapList(raw: str) -> list[str]:
+	names: list[str] = []
+	for part in raw.replace(";", ",").split(","):
+		token = part.strip().lower()
+		if not token:
+			continue
+		if token.isdigit():
+			index = int(token)
+			if index < 1 or index > len(TRAP_ORDER):
+				raise ValueError(SetupTrapSetBadText)
+			names.append(TRAP_ORDER[index - 1])
+			continue
+		if token == "https":
+			token = "http"
+		if token not in TRAP_ORDER:
+			raise ValueError(SetupTrapSetBadText)
+		names.append(token)
+	return names
+
+
+def _ask_TrapSelection(role: dict) -> list[str]:
+	print(SetupTrapListHelp)
+	default = _default_TrapNumbers(role)
+	while True:
+		raw = _ask(SetupAskTrapSetText, default) or default
+		try:
+			names = _parse_TrapList(raw)
+		except ValueError:
+			print_Attention(SetupTrapSetBadText)
+			continue
+		if not names:
+			print_Attention(SetupTrapSetEmptyText)
+			continue
+		return names
+
+
+def _role_ForService(role: dict, service: str) -> dict:
+	if role.get("service") == service and not role.get("bundle"):
+		item = dict(role)
+		item["service"] = service
+		item["banner"] = role.get("banner") or DEFAULT_BANNERS[service]
+		return item
+	username = "root"
+	password = "admin"
+	auth_mode = "allow_listed"
+	if service == "postgres":
+		username = "postgres"
+		password = "postgres"
+	elif service == "redis":
+		username = "default"
+		password = "redis"
+	elif service == "tcp_banner":
+		auth_mode = "off"
+	elif service == "ssh":
+		auth_mode = "second_attempt_sticky"
+	return {
+		"service": service,
+		"port": DEFAULT_PORTS[service],
+		"banner": DEFAULT_BANNERS[service],
+		"username": username,
+		"password": password,
+		"auth_mode": auth_mode,
+		"shell": service == "ssh",
+		"fs_pack": "ubuntu-22.04",
+		"auth_path": "/admin",
+		"sticky_ttl": 72,
+	}
+
+
+def _configure_Bundle(role: dict, selected: list[str]) -> list[dict]:
+	auth = _ask_AuthModule(role, "db")
+	linked_ids = []
+	if auth["auth_mode"] in ("allow_listed", "second_attempt_sticky"):
+		linked_ids = [item["id"] for item in auth["credentials"]]
+	banners = {
+		spec["service"]: spec["banner"]
+		for spec in role.get("services") or []
+	}
+	faces = []
+	taken: set[int] = set()
+	total = len(selected)
+	for index, service in enumerate(selected, start=1):
+		print()
+		print(Fore.CYAN + Style.BRIGHT + SetupTrapProgressText.format(index=index, total=total) + Style.RESET_ALL)
+		port = _ask_FreePort(taken, DEFAULT_PORTS[service])
+		taken.add(port)
+		print_OpsLine("сервис", f"{service}:{port}")
+		faces.append({
+			"service": service,
+			"port": port,
+			"banner": banners.get(service) or DEFAULT_BANNERS[service],
+			"credentials": auth["credentials"] if not faces else [],
+			"credential_ids": list(linked_ids),
+			"auth_mode": auth["auth_mode"],
+			"sticky_ttl": auth["sticky_ttl"],
+			"shell_enabled": False,
+			"fs_pack": "",
+			"auth_path": auth["auth_path"],
+			"level": "medium",
+		})
+	print_OpsLine("уровень", "medium")
+	return faces
+
+
+def _configure_All(role: dict) -> list[dict]:
+	_step_Header(SetupStep2Header)
+	print_SetupTip(SetupStep2TipService)
+	selected = _ask_TrapSelection(role)
+	db_services = {"postgres", "redis", "mysql"}
+	if role.get("bundle") and set(selected) <= db_services:
+		faces = _configure_Bundle(role, selected)
+		_assert_TrapsFit(faces)
+		return faces
+	faces = []
+	taken: set[int] = set()
+	total = len(selected)
+	for index, service in enumerate(selected, start=1):
+		item = _role_ForService(role, service)
+		default_port = int(item.get("port") or DEFAULT_PORTS[service])
+		print()
+		print(Fore.CYAN + Style.BRIGHT + SetupTrapProgressText.format(index=index, total=total) + Style.RESET_ALL)
+		item["port"] = _ask_FreePort(taken, default_port)
+		face = _configure_Modules(item)
+		faces.append(face)
+		taken.add(int(face["port"]))
+	_assert_TrapsFit(faces)
+	return faces
+
+
+def _auth_Module(face: dict) -> dict:
 	auth_mode = face.get("auth_mode") or "off"
 	auth_enabled = auth_mode != "off"
-	linked_ids = credential_ids if auth_mode in ("allow_listed", "second_attempt_sticky") else []
 	auth_module = {
 		"enabled": auth_enabled,
 		"mode": "allow_all" if not auth_enabled else auth_mode,
-		"credential_ids": linked_ids,
+		"credential_ids": list(face.get("credential_ids") or []),
 		"delay_ms_min": 150 if auth_enabled else 0,
 		"delay_ms_max": 900 if auth_enabled else 0,
 	}
 	if auth_mode == "second_attempt_sticky":
 		auth_module["sticky_ttl_hours"] = int(face.get("sticky_ttl") or 72)
+	return auth_module
 
+
+def _service_Block(face: dict, service_id: str) -> dict:
+	service = face["service"]
+	port = int(face["port"])
+	auth_module = _auth_Module(face)
+	auth_enabled = bool(auth_module["enabled"])
 	if service == "tcp_banner":
-		service_block = {
+		return {
 			"type": "tcp_banner",
-			"id": "banner-1",
+			"id": service_id,
 			"port": port,
 			"enabled": True,
 			"modules": {"banner": face.get("banner") or ""},
 		}
-	elif service == "ssh":
-		service_block = {
+	if service == "ssh":
+		return {
 			"type": "ssh",
-			"id": "ssh-main",
+			"id": service_id,
 			"port": port,
 			"enabled": True,
 			"modules": {
-				"banner": {"enabled": True, "version": face.get("banner") or "SSH-2.0-OpenSSH_8.9p1"},
+				"banner": {"enabled": True, "version": face.get("banner") or DEFAULT_BANNERS["ssh"]},
 				"auth": auth_module,
 				"shell": {
 					"enabled": bool(face.get("shell_enabled")) and auth_enabled,
@@ -432,7 +637,7 @@ def _save_Profile(
 				},
 			},
 		}
-	else:
+	if service == "http":
 		http_auth = dict(auth_module)
 		auth_path = face.get("auth_path") or "/admin"
 		http_auth["path"] = auth_path
@@ -451,28 +656,68 @@ def _save_Profile(
 				"status": 200,
 				"body": "<html><body>Administration</body></html>",
 			})
-		service_block = {
+		return {
 			"type": "http",
-			"id": "http-main",
+			"id": service_id,
 			"port": port,
 			"enabled": True,
 			"modules": {
 				"personality": {
 					"enabled": True,
-					"server": face.get("banner") or "nginx/1.24.0",
+					"server": face.get("banner") or DEFAULT_BANNERS["http"],
 					"title": "Administration",
 				},
 				"auth": http_auth,
 				"routes": {"routes": routes},
 			},
 		}
+	return {
+		"type": service,
+		"id": service_id,
+		"port": port,
+		"enabled": True,
+		"modules": {
+			"banner": {
+				"enabled": True,
+				"version": face.get("banner") or DEFAULT_BANNERS.get(service, ""),
+			},
+			"auth": auth_module,
+			"session": {"enabled": True, "max_session_sec": 120},
+		},
+	}
+
+
+def _save_Profile(
+	trap_name: str,
+	role: dict,
+	faces: list[dict],
+	stealth: dict,
+) -> tuple[str, str]:
+	profile_name = f"{role['key']}-{trap_name}"
+	_assert_TrapsFit(faces)
+	level = "low"
+	credentials = []
+	seen_ids: set[str] = set()
+	service_blocks = []
+	counts: dict[str, int] = {}
+	for face in faces:
+		if face.get("level") == "medium":
+			level = "medium"
+		for item in face.get("credentials") or []:
+			if item["id"] in seen_ids:
+				continue
+			seen_ids.add(item["id"])
+			credentials.append(item)
+		kind = str(face["service"])
+		counts[kind] = counts.get(kind, 0) + 1
+		service_blocks.append(_service_Block(face, f"{kind}-{counts[kind]}"))
 
 	body = {
 		"name": profile_name,
 		"description": f"ловушка {trap_name} / {role['label']}",
 		"interaction_level": level,
 		"blocks": {
-			"services": [service_block],
+			"services": service_blocks,
 			"credentials": credentials,
 			"logging": {
 				"capture_credentials": True,
@@ -700,9 +945,9 @@ def cmd_Setup(_args) -> None:
 		role = _pick_Role()
 		print_OpsLine("Роль", role["label"])
 
-		face = _configure_Modules(role)
+		faces = _configure_All(role)
 		stealth = _ask_Stealth()
-		profile_id, profile_name = _save_Profile(trap_name, role, face, stealth)
+		profile_id, profile_name = _save_Profile(trap_name, role, faces, stealth)
 
 		known_code = _install_OverSsh(trap_name, role, profile_name)
 		trap_id = _wait_AndApprove(profile_id, trap_name, known_code)

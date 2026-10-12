@@ -82,15 +82,19 @@ ProfileUpdatedText = "Профиль обновлён: {profile_id}"
 ProfileDeletedText = "Профиль удалён: {profile_id}"
 ProfileCreateUsageText = (
     "нужны --file ИЛИ --name --port "
-    "[--service ssh|http|tcp_banner] [--level low|medium] "
+    "[--service ssh|http|tcp_banner|postgres|redis|mysql] [--level low|medium] "
+    "[--services postgres,redis,mysql] "
     "[--auth off|allow_all|allow_listed|second_attempt_sticky] "
     "[--username U --password P] [--banner TEXT]"
 )
 ProfileUpdateUsageText = "нужны --file и/или --name, --description"
 ProfileHighUnavailableText = "уровень high недоступен: блок emulation ещё не подключён"
-ProfileHttpNeedsMediumText = "HTTP-сервис это medium. Для low укажите --service ssh"
+ProfileHttpNeedsMediumText = "http, postgres, redis и mysql всегда medium"
 ProfileBannerNeedsLowText = "tcp_banner это только уровень low, без входа"
-ProfileServiceUnknownText = "сервис должен быть ssh, http или tcp_banner"
+ProfileServiceUnknownText = "сервис должен быть ssh, http, tcp_banner, postgres, redis или mysql"
+ProfilePortConflictText = "порт {port} уже занят ловушкой {first}, {second} туда вставать не может"
+ProfileServicesNeedNameText = "для --services нужно --name"
+ProfileOnePortText = "--port задаёт порт одной ловушки. Для нескольких порты стандартные: postgres 5432, redis 6379, mysql 3306"
 ProfileListedNeedsCredsText = "allow_listed требует --username и --password"
 ProfilePasswordRequiredText = "вместе с --username нужен --password"
 ProfileAuthNeedsMediumText = "вход и shell дают уровень medium, для low уберите --auth"
@@ -145,16 +149,30 @@ SetupStep1TipSite = (
 )
 
 SetupStep1TipRole = (
-    "Роль задаёт тип сервиса и какие модули включены. "
-    "Уровень low или medium получится из этой цепочки, отдельно его не выбирают."
+    "Роль задаёт стартовый набор. На следующем шаге можно оставить одну ловушку "
+    "или включить несколько. Уровень low или medium получится из модулей."
 )
 
 SetupStep2Header = "Этап 2/5 - Модули сервиса"
 
 SetupStep2TipService = (
     "Сервис собирается по слотам. SSH: banner, потом auth, потом shell. "
-    "HTTP: personality, auth, routes. Баннер без входа - это low."
+    "HTTP: personality, auth, routes. Базы: banner, auth, session. "
+    "Несколько ловушек живут на одном узле, если у каждой свой порт."
 )
+SetupTrapListHelp = """
+Ловушки на этом узле. Несколько номеров через запятую:
+  1) ssh          22
+  2) http         8080
+  3) tcp_banner   2121
+  4) postgres     5432
+  5) redis        6379
+  6) mysql        3306
+"""
+SetupAskTrapSetText = "Какие ловушки включить"
+SetupTrapSetEmptyText = "Нужна хотя бы одна ловушка"
+SetupTrapSetBadText = "Не понял список. Пример: 1,4,5"
+SetupTrapProgressText = "Ловушка {index}/{total}"
 
 SetupStep2TipCreds = (
     "Слабые учётки-приманки специально оставляют на Mid: "
@@ -287,7 +305,8 @@ SetupRolePresetsHelp = """
   1) corp-ssh    - SSH: banner + sticky-вход + shell
   2) edge-http   - HTTP: personality + вход по приманке + routes
   3) scan-bait   - SSH: только модуль banner (low)
-  4) custom      - самому включить слоты ssh / http / tcp_banner
+  4) custom      - самому включить слоты ssh / http / tcp_banner / базы
+  5) data-stores - сразу Postgres, Redis и MySQL на разных портах
 """
 
 
@@ -321,7 +340,8 @@ HelpText = """Команды HoneyForge CLI:
   profile-list                 - список профилей
   profile-show <id>            - показать профиль и модули
   profile-create --file f.json
-  profile-create --name N --port P --service ssh|http|tcp_banner
+  profile-create --name N --port P --service ssh|http|tcp_banner|postgres|redis|mysql
+  profile-create --name N --services postgres,redis,mysql
       [--level low|medium]
       [--auth off|allow_all|allow_listed|second_attempt_sticky]
       [--username U --password P] [--banner TEXT]

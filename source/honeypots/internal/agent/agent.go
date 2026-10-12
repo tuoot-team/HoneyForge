@@ -2,11 +2,13 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"os"
 	"path/filepath"
 	"sync"
+	"syscall"
 	"time"
 
 	agentauth "honeyforge/honeypots/internal/auth"
@@ -311,6 +313,7 @@ func (a *Agent) run_Honeypots(ctx context.Context) {
 
 	var wg sync.WaitGroup
 	started := 0
+	claimedPorts := map[int]string{}
 	for _, svc := range blocks.Services {
 		if !svc.IsEnabled() || svc.Port == 0 {
 			continue
@@ -319,6 +322,12 @@ func (a *Agent) run_Honeypots(ctx context.Context) {
 		if serviceID == "" {
 			serviceID = svc.Type
 		}
+		// Одна и та же пара порт/ловушка не должна глушить остальные сервисы.
+		if owner, taken := claimedPorts[svc.Port]; taken {
+			fmt.Printf(texts.MsgAgentPortDup+"\n", serviceID, svc.Port, owner)
+			continue
+		}
+		claimedPorts[svc.Port] = serviceID
 		fmt.Printf(texts.MsgAgentServiceStart+"\n", serviceID, svc.Port)
 		started++
 		port := svc.Port
@@ -383,11 +392,51 @@ func (a *Agent) run_Honeypots(ctx context.Context) {
 					a.On_Event,
 					a.Debug,
 				)
+			case "postgres":
+				credentials := profile.CredentialsFor(service.PgModules.Auth.CredentialIDs)
+				serviceErr = mid.Start_FakePostgres(
+					ctx,
+					port,
+					service.ID,
+					service.PgModules,
+					credentials,
+					a.AuthStore,
+					a.On_Event,
+					a.Debug,
+				)
+			case "redis":
+				credentials := profile.CredentialsFor(service.RedisModules.Auth.CredentialIDs)
+				serviceErr = mid.Start_FakeRedis(
+					ctx,
+					port,
+					service.ID,
+					service.RedisModules,
+					credentials,
+					a.AuthStore,
+					a.On_Event,
+					a.Debug,
+				)
+			case "mysql":
+				credentials := profile.CredentialsFor(service.MysqlModules.Auth.CredentialIDs)
+				serviceErr = mid.Start_FakeMysql(
+					ctx,
+					port,
+					service.ID,
+					service.MysqlModules,
+					credentials,
+					a.AuthStore,
+					a.On_Event,
+					a.Debug,
+				)
 			default:
 				serviceErr = fmt.Errorf("неизвестный тип сервиса: %s", service.Type)
 			}
 			if serviceErr != nil && ctx.Err() == nil {
-				fmt.Printf("[WARN] сервис %s:%d: %v\n", service.ID, port, serviceErr)
+				if errors.Is(serviceErr, syscall.EADDRINUSE) {
+					fmt.Printf(texts.MsgAgentPortBusy+"\n", service.ID, port)
+				} else {
+					fmt.Printf(texts.MsgAgentPortDenied+"\n", service.ID, port, serviceErr)
+				}
 			}
 		}()
 	}

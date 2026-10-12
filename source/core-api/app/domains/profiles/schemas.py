@@ -147,8 +147,48 @@ class TcpBannerServiceBlock(BaseModel):
 	modules: TcpBannerModules = Field(default_factory=TcpBannerModules)
 
 
+class DbBannerModule(BaseModel):
+	enabled: bool = True
+	version: str = ""
+
+
+class SessionModule(BaseModel):
+	enabled: bool = True
+	max_session_sec: int = Field(default=120, ge=5, le=86400)
+
+
+class DbModules(BaseModel):
+	banner: DbBannerModule = Field(default_factory=DbBannerModule)
+	auth: AuthModule = Field(default_factory=AuthModule)
+	session: SessionModule = Field(default_factory=SessionModule)
+
+
+class PostgresServiceBlock(BaseModel):
+	type: Literal["postgres"] = "postgres"
+	id: str = Field(default="postgres", min_length=1)
+	port: int = Field(ge=1, le=65535)
+	enabled: bool = True
+	modules: DbModules = Field(default_factory=DbModules)
+
+
+class RedisServiceBlock(BaseModel):
+	type: Literal["redis"] = "redis"
+	id: str = Field(default="redis", min_length=1)
+	port: int = Field(ge=1, le=65535)
+	enabled: bool = True
+	modules: DbModules = Field(default_factory=DbModules)
+
+
+class MysqlServiceBlock(BaseModel):
+	type: Literal["mysql"] = "mysql"
+	id: str = Field(default="mysql", min_length=1)
+	port: int = Field(ge=1, le=65535)
+	enabled: bool = True
+	modules: DbModules = Field(default_factory=DbModules)
+
+
 ServiceBlock = Annotated[
-	SshServiceBlock | HttpServiceBlock | TcpBannerServiceBlock,
+	SshServiceBlock | HttpServiceBlock | TcpBannerServiceBlock | PostgresServiceBlock | RedisServiceBlock | MysqlServiceBlock,
 	Field(discriminator="type"),
 ]
 
@@ -363,7 +403,7 @@ class ProfileBlocks(BaseModel):
 
 
 def _auth_Module(service: ServiceBlock) -> AuthModule | None:
-	if isinstance(service, (SshServiceBlock, HttpServiceBlock)):
+	if isinstance(service, (SshServiceBlock, HttpServiceBlock, PostgresServiceBlock, RedisServiceBlock, MysqlServiceBlock)):
 		return service.modules.auth
 	return None
 
@@ -441,7 +481,7 @@ def _legacy_HttpModules(
 def _service_Level(service: ServiceBlock) -> InteractionLevel:
 	if isinstance(service, TcpBannerServiceBlock):
 		return InteractionLevel.low
-	if isinstance(service, HttpServiceBlock):
+	if isinstance(service, (HttpServiceBlock, PostgresServiceBlock, RedisServiceBlock, MysqlServiceBlock)):
 		return InteractionLevel.medium
 	if isinstance(service, SshServiceBlock) and (
 		service.modules.auth.enabled or service.modules.shell.enabled
