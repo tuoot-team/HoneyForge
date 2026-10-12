@@ -1,6 +1,8 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from app.api.v1.health import router as health_router
 from app.api.v1.router import api_v1_router, collector_router
@@ -54,6 +56,14 @@ def create_App() -> FastAPI:
 	application.include_router(health_router)
 	application.include_router(api_v1_router)
 	application.include_router(collector_router)
+	# Тот же каталог, что nginx отдаёт как /downloads/. Нужен и для uvicorn без прокси.
+	downloads_dir = Path(__file__).resolve().parents[1] / "downloads"
+	downloads_dir.mkdir(parents=True, exist_ok=True)
+	application.mount(
+		"/downloads",
+		StaticFiles(directory=str(downloads_dir)),
+		name="downloads",
+	)
 	return application
 
 

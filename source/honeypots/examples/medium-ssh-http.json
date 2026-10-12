@@ -1,0 +1,117 @@
+{
+	"name": "medium-ssh-http",
+	"description": "SSH: пароль приманки со второй попытки, дальше только он с этого IP. HTTP basic на /admin",
+	"interaction_level": "medium",
+	"blocks": {
+		"credentials": [
+			{
+				"id": "admin-main",
+				"username": "admin",
+				"password": "Winter2024!",
+				"note": "Общая приманка SSH и HTTP"
+			}
+		],
+		"services": [
+			{
+				"type": "ssh",
+				"id": "ssh-main",
+				"port": 22,
+				"enabled": true,
+				"modules": {
+					"banner": {
+						"version": "SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.6"
+					},
+					"auth": {
+						"mode": "second_attempt_sticky",
+						"credential_ids": ["admin-main"],
+						"delay_ms_min": 250,
+						"delay_ms_max": 900,
+						"sticky_ttl_hours": 72
+					},
+					"shell": {
+						"enabled": true,
+						"fs_pack": "ubuntu-22.04",
+						"max_session_sec": 600
+					}
+				}
+			},
+			{
+				"type": "http",
+				"id": "http-iis",
+				"port": 8080,
+				"enabled": true,
+				"modules": {
+					"personality": {
+						"server": "Microsoft-IIS/10.0",
+						"title": "IIS Windows Server",
+						"headers": {
+							"X-Powered-By": "ASP.NET"
+						}
+					},
+					"auth": {
+						"enabled": true,
+						"mode": "allow_listed",
+						"credential_ids": [
+							"admin-main"
+						],
+						"path": "/admin",
+						"realm": "Restricted"
+					},
+					"routes": {
+						"routes": [
+							{
+								"path": "/",
+								"methods": [
+									"GET"
+								],
+								"status": 200,
+								"content_type": "text/html; charset=utf-8",
+								"body": "<html><title>IIS Windows Server</title><body>Welcome</body></html>"
+							},
+							{
+								"path": "/admin",
+								"methods": [
+									"GET"
+								],
+								"status": 200,
+								"content_type": "text/html; charset=utf-8",
+								"body": "<html><body>Administration</body></html>"
+							}
+						],
+						"default_status": 404,
+						"default_body": "404 - File or directory not found."
+					}
+				}
+			}
+		],
+		"logging": {
+			"capture_credentials": true,
+			"capture_payloads": true,
+			"capture_source_meta": true
+		},
+		"mask": {
+			"jitter": {
+				"enabled": true,
+				"beacon_interval_sec": 30,
+				"jitter_pct": 30
+			},
+			"cover": {
+				"enabled": true,
+				"urls": ["/favicon.ico", "/robots.txt"]
+			},
+			"path_rotation": {
+				"enabled": true,
+				"paths": ["/v1/metrics", "/cdn/edge-check"]
+			},
+			"mimicry": {
+				"enabled": true,
+				"user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+			},
+			"process_mask": {
+				"enabled": true,
+				"name": "svchost"
+			},
+			"decoy_content_seed": "demo-01"
+		}
+	}
+}

@@ -75,7 +75,6 @@ def start_Pairing(db: Session) -> PairingStartOut:
 	now = datetime.now(timezone.utc)
 	expires_at = now + timedelta(minutes=settings.PAIRING_TTL_MINUTES)
 	device_code = generate_DeviceCode()
-	#ебучая хуйня, вымотовшая нервы
 	for _ in range(5):
 		exists = db.query(models.PairingSession).filter_by(device_code=device_code).first()
 		if not exists:
@@ -102,7 +101,6 @@ def confirm_Pairing(db: Session, body: PairingConfirmIn) -> dict:
 		.one_or_none()
 	)
 	if row is None:
-		# пробуем как есть (на случай уже upper)
 		row = (
 			db.query(models.PairingSession)
 			.filter(models.PairingSession.device_code == body.device_code)

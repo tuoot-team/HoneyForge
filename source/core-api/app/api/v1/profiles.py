@@ -5,13 +5,14 @@ from fastapi import APIRouter
 from app.deps import DbSession, Operator
 from app.domains.profiles import service as profile_service
 from app.domains.profiles.schemas import (
+	AuthMode,
 	InteractionLevel,
 	ProfileBlocks,
 	ProfileCreate,
 	ProfileOut,
 	ProfileSchemaDoc,
 	ProfileUpdate,
-	ServiceBlock,
+	SshServiceBlock,
 )
 
 router = APIRouter(prefix="/profiles", tags=["profiles"])
@@ -25,19 +26,21 @@ def get_ProfileSchema() -> ProfileSchemaDoc:
 		description="example medium profile",
 		interaction_level=InteractionLevel.medium,
 		blocks=ProfileBlocks(
-			services=[ServiceBlock(name="ssh", port=22)],
+			services=[SshServiceBlock(port=22)],
 		),
 	)
 	return ProfileSchemaDoc(
 		interaction_levels=[level.value for level in InteractionLevel],
-		block_keys=["services", "banners", "credentials", "logging", "mask"],
+		block_keys=["services", "credentials", "logging", "mask"],
+		service_types=["ssh", "http", "tcp_banner"],
+		auth_modes=[mode.value for mode in AuthMode],
+		mask_methods=["jitter", "cover", "path_rotation", "mimicry", "process_mask"],
 		example=example,
 	)
 
 
 @router.post("/validate")
 def validate_Profile(_body: ProfileCreate) -> dict:
-	# pydantic уже проверил тело
 	return {"valid": True}
 
 

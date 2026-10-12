@@ -64,7 +64,6 @@ class PairingSession(Base):
 	)
 	status: Mapped[str] = mapped_column(Text, nullable=False, default="pending")
 	registration_token_hash: Mapped[str | None] = mapped_column(Text, nullable=True)
-	# plaintext token только до complete (для выдачи агенту); в PG лучше шифровать - для MVP ок в meta/поле
 	pending_agent_token: Mapped[str | None] = mapped_column(Text, nullable=True)
 	expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 	created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

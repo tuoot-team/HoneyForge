@@ -29,7 +29,6 @@ class Settings(BaseSettings):
 	OPERATOR_TOKEN_SECRET: str = "dev-change-me-operator-secret"
 	PUBLIC_BASE_URL: str = "http://localhost"
 
-	# минуты без heartbeat -> offline
 	AGENT_STALE_MINUTES: int = 5
 	PAIRING_TTL_MINUTES: int = 15
 

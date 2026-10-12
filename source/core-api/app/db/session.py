@@ -17,7 +17,6 @@ def get_Engine():
 	settings = get_Settings()
 	connect_args: dict = {}
 	if settings.USE_SQLITE:
-		# SQLite: один поток TestClient / uvicorn reload
 		connect_args["check_same_thread"] = False
 	else:
 		connect_args["connect_timeout"] = 2

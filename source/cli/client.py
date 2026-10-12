@@ -174,8 +174,6 @@ def stream_Api(path: str, *, auth: bool = True) -> SseStream:
 	return stream
 
 
-# --- auth ---
-
 def post_Login(password: str) -> dict:
 	data = request_Api(
 		"POST",
@@ -207,8 +205,6 @@ def get_Health() -> dict:
 	return request_Api("GET", "/health", auth=False)
 
 
-# --- profiles ---
-
 def get_ProfileSchema() -> dict:
 	return request_Api("GET", "/api/v1/profiles/schema", auth=False)
 
@@ -237,8 +233,6 @@ def delete_Profile(profile_id: str) -> None:
 	request_Api("DELETE", f"/api/v1/profiles/{profile_id}")
 
 
-# --- pairing / traps ---
-
 def list_Pairings(status: str = "pending") -> dict:
 	params = {"status": status}
 	return request_Api("GET", "/api/v1/pairing/", params=params)
@@ -266,8 +260,6 @@ def bind_TrapProfile(trap_id: str, profile_id: str) -> dict:
 		json_body={"profile_id": profile_id},
 	)
 
-
-# --- events ---
 
 def list_Events(
 	*,

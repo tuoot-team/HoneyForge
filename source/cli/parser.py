@@ -11,7 +11,9 @@ from commands.profiles import (
 	cmd_ProfileList,
 	cmd_ProfileSchema,
 	cmd_ProfileShow,
+	cmd_ProfileUpdate,
 )
+from commands.deploy import cmd_Deploy
 from commands.setup import cmd_Guide, cmd_Setup
 from commands.traps import (
 	cmd_PairConfirm,
@@ -27,7 +29,6 @@ def create_parser() -> argparse.ArgumentParser:
 	parser = argparse.ArgumentParser(prog="forge", add_help=False)
 	sub = parser.add_subparsers(dest="command", required=True)
 
-	# служебные
 	p_help = sub.add_parser("help", help="справка")
 	p_help.set_defaults(func=lambda _a: print(HelpText))
 
@@ -43,6 +44,14 @@ def create_parser() -> argparse.ArgumentParser:
 	p_guide = sub.add_parser("guide", help="алиас setup")
 	p_guide.set_defaults(func=cmd_Guide)
 
+	p_deploy = sub.add_parser("deploy", help="поставить агент на хост по SSH")
+	p_deploy.add_argument("--host", default="", help="IP хоста ловушки")
+	p_deploy.add_argument("--user", default="root", help="логин SSH")
+	p_deploy.add_argument("--port", type=int, default=22, help="порт SSH")
+	p_deploy.add_argument("--api-base", default="", help="адрес центра, видимый с хоста")
+	p_deploy.add_argument("--password", default="", help="пароль SSH, иначе спросит")
+	p_deploy.set_defaults(func=cmd_Deploy)
+
 	p_health = sub.add_parser("health", help="проверка API /health")
 	p_health.set_defaults(func=cmd_Health)
 
@@ -52,7 +61,6 @@ def create_parser() -> argparse.ArgumentParser:
 	p_logout = sub.add_parser("logout", help="сбросить Bearer-токен")
 	p_logout.set_defaults(func=cmd_Logout)
 
-	# profiles
 	p_ps = sub.add_parser("profile-schema", help="схема конструктора")
 	p_ps.set_defaults(func=cmd_ProfileSchema)
 
@@ -63,20 +71,45 @@ def create_parser() -> argparse.ArgumentParser:
 	p_pshow.add_argument("profile_id")
 	p_pshow.set_defaults(func=cmd_ProfileShow)
 
-	p_pc = sub.add_parser("profile-create", help="создать профиль")
+	p_pc = sub.add_parser("profile-create", help="создать профиль из слотов сервиса")
 	p_pc.add_argument("--file", help="JSON-файл тела ProfileCreate")
 	p_pc.add_argument("--name", help="имя (если без --file)")
-	p_pc.add_argument("--level", choices=["low", "medium", "high"], help="уровень")
+	p_pc.add_argument("--level", choices=["low", "medium", "high"], help="low=баннер, medium=вход/shell/http")
 	p_pc.add_argument("--port", type=int, help="порт сервиса")
-	p_pc.add_argument("--service", default="ssh", help="имя сервиса (default ssh)")
+	p_pc.add_argument(
+		"--service",
+		default="ssh",
+		choices=["ssh", "http", "https", "tcp_banner"],
+		help="тип сервиса (default ssh)",
+	)
+	p_pc.add_argument(
+		"--auth",
+		choices=["off", "allow_all", "allow_listed", "second_attempt_sticky"],
+		help="режим модуля auth",
+	)
+	p_pc.add_argument("--username", help="логин приманки")
+	p_pc.add_argument("--password", help="пароль приманки")
+	p_pc.add_argument("--banner", help="баннер SSH/TCP или версия HTTP, если нет --server")
+	p_pc.add_argument("--server", help="HTTP-заголовок Server, например nginx/1.24.0")
+	p_pc.add_argument("--auth-path", dest="auth_path", help="путь HTTP auth (default /admin)")
+	p_pc.add_argument("--delay-min", dest="delay_min", type=int, help="мин. задержка входа, мс")
+	p_pc.add_argument("--delay-max", dest="delay_max", type=int, help="макс. задержка входа, мс")
+	p_pc.add_argument("--sticky-ttl", dest="sticky_ttl", type=int, help="TTL привязки IP, часы")
+	p_pc.add_argument("--no-shell", dest="no_shell", action="store_true", help="SSH: вход без shell")
 	p_pc.add_argument("--description", default="", help="описание")
 	p_pc.set_defaults(func=cmd_ProfileCreate)
+
+	p_pu = sub.add_parser("profile-update", help="обновить профиль (JSON или имя/описание)")
+	p_pu.add_argument("profile_id")
+	p_pu.add_argument("--file", help="JSON ProfileCreate: name, level, blocks")
+	p_pu.add_argument("--name", help="новое имя")
+	p_pu.add_argument("--description", help="новое описание")
+	p_pu.set_defaults(func=cmd_ProfileUpdate)
 
 	p_pd = sub.add_parser("profile-delete", help="удалить профиль")
 	p_pd.add_argument("profile_id")
 	p_pd.set_defaults(func=cmd_ProfileDelete)
 
-	# pairing / traps
 	p_plist = sub.add_parser("pair-list", help="входящие запросы pairing")
 	p_plist.add_argument(
 		"--status",
@@ -104,7 +137,6 @@ def create_parser() -> argparse.ArgumentParser:
 	p_tb.add_argument("profile_id")
 	p_tb.set_defaults(func=cmd_TrapBind)
 
-	# events
 	p_el = sub.add_parser("events-list", help="список событий")
 	p_el.add_argument("--trap-id", dest="trap_id", default=None)
 	p_el.add_argument("--type", dest="type", default=None)

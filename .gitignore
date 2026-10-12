@@ -26,6 +26,7 @@ dist/
 Thumbs.db
 
 # build / local
+build/
 build/*.exe
 build/*.bin
 *.log
@@ -33,5 +34,10 @@ _pdf_extract.txt
 **/honeyforge_local.db
 source/core-api/_gen_*.py
 source/honeypots/.fake_agent_state.json
+source/honeypots/.agent_state.json
 source/honeypots/.ssh_host_key
 source/honeypots/events_buffer.db
+source/honeypots/events_buffer.json
+source/honeypots/vendor/
+source/core-api/downloads/agent
+source/core-api/downloads/agent.exe

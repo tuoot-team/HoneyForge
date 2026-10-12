@@ -9,6 +9,7 @@ from colorama import Fore, Style
 import client
 from texts import (
 	DispEmptyListText,
+	DispMaskMethodsTitle,
 	DispEventsHeaderText,
 	DispPairConfirmHintText,
 	DispProfilesHeaderText,
@@ -148,25 +149,70 @@ def _print_Services(services: list) -> None:
 	for svc in services:
 		enabled = svc.get("enabled", True)
 		mark = Fore.GREEN + "on " if enabled else Style.DIM + "off"
-		name = svc.get("name", "?")
+		name = svc.get("type") or svc.get("name", "?")
+		service_id = svc.get("id") or name
 		port = svc.get("port", "?")
 		proto = svc.get("protocol", "tcp")
 		print(
 			f"    {mark}{Style.RESET_ALL} "
-			f"{Fore.YELLOW}{name}{Style.RESET_ALL} "
+			f"{Fore.YELLOW}{service_id}{Style.RESET_ALL} "
+			f"[{name}] "
 			f"{proto}/{Fore.CYAN}{port}{Style.RESET_ALL}"
 		)
+		modules = svc.get("modules") or {}
+		if name == "ssh":
+			banner = modules.get("banner") or {}
+			auth = modules.get("auth") or {}
+			shell = modules.get("shell") or {}
+			auth_label = "off"
+			if auth.get("enabled", True):
+				auth_label = str(auth.get("mode") or "allow_all")
+			shell_label = "on" if shell.get("enabled", True) else "off"
+			pack = shell.get("fs_pack") or ""
+			pack_label = f" pack={pack}" if pack and shell_label == "on" else ""
+			print(
+				f"        banner={banner.get('version', '')} "
+				f"auth={auth_label} shell={shell_label}{pack_label}"
+				f"{_format_AuthDelay(auth)}{_format_AuthRefs(auth)}"
+			)
+		elif name == "http":
+			personality = modules.get("personality") or {}
+			auth = modules.get("auth") or {}
+			auth_label = "off"
+			if auth.get("enabled"):
+				auth_label = str(auth.get("mode") or "allow_all")
+			print(
+				f"        server={personality.get('server', '?')} "
+				f"auth={auth_label}"
+				f"{_format_AuthDelay(auth)}{_format_AuthRefs(auth)}"
+			)
+		elif name == "tcp_banner":
+			banner = (modules.get("banner") or "").strip()
+			if banner:
+				print(f"        banner={banner}")
 
 
-def _print_Banners(banners: list) -> None:
-	if not banners:
-		print_OpsLine("banners", "-")
-		return
-	print_OpsLine("banners", str(len(banners)))
-	for banner in banners:
-		svc = banner.get("service", "?")
-		text = banner.get("text", "")
-		print(f"    {Fore.YELLOW}{svc}{Style.RESET_ALL}  {text}")
+def _format_AuthDelay(auth: dict) -> str:
+	delay_min = auth.get("delay_ms_min") or 0
+	delay_max = auth.get("delay_ms_max") or 0
+	if not delay_min and not delay_max:
+		return ""
+	return f" delay={delay_min}-{delay_max}ms"
+
+
+def _format_AuthRefs(auth: dict) -> str:
+	parts: list[str] = []
+	credential_ids = auth.get("credential_ids") or []
+	if credential_ids:
+		parts.append("creds=" + ",".join(str(item) for item in credential_ids))
+	if auth.get("mode") == "second_attempt_sticky" and auth.get("sticky_ttl_hours"):
+		parts.append(f"ttl={auth.get('sticky_ttl_hours')}h")
+	path = auth.get("path")
+	if path and auth.get("enabled"):
+		parts.append(f"path={path}")
+	if not parts:
+		return ""
+	return " " + " ".join(parts)
 
 
 def _print_Credentials(creds: list) -> None:
@@ -175,32 +221,61 @@ def _print_Credentials(creds: list) -> None:
 		return
 	print_OpsLine("creds", str(len(creds)))
 	for cred in creds:
+		credential_id = cred.get("id", "?")
 		user = cred.get("username", "?")
 		password = cred.get("password", "?")
-		svc = cred.get("service") or "*"
 		print(
-			f"    {Fore.RED}{user}{Style.RESET_ALL}"
+			f"    {credential_id}  {Fore.RED}{user}{Style.RESET_ALL}"
 			f":{Fore.RED}{password}{Style.RESET_ALL}"
-			f"  ({svc})"
 		)
+
+
+def _method_Mark(method: dict) -> str:
+	if method.get("enabled", True):
+		return Fore.GREEN + "on " + Style.RESET_ALL
+	return Style.DIM + "off" + Style.RESET_ALL
 
 
 def _print_Mask(mask: dict) -> None:
 	if not mask:
 		print_OpsLine("mask", "-")
 		return
-	interval = mask.get("beacon_interval_sec", "?")
-	jitter = mask.get("jitter_pct", "?")
-	process = mask.get("process_name", "?")
-	print_OpsLine(
-		"mask",
-		f"interval={Fore.YELLOW}{interval}s{Style.RESET_ALL}  "
-		f"jitter={Fore.YELLOW}{jitter}%{Style.RESET_ALL}  "
-		f"proc={process}",
+	if "jitter" not in mask and "beacon_interval_sec" in mask:
+		mask = {
+			"jitter": {
+				"enabled": True,
+				"beacon_interval_sec": mask.get("beacon_interval_sec"),
+				"jitter_pct": mask.get("jitter_pct"),
+			},
+			"cover": {"enabled": bool(mask.get("cover_urls")), "urls": mask.get("cover_urls") or []},
+			"path_rotation": {
+				"enabled": bool(mask.get("collector_path_set")),
+				"paths": mask.get("collector_path_set") or [],
+			},
+			"mimicry": {"enabled": True, "user_agent": mask.get("user_agent", "")},
+			"process_mask": {"enabled": True, "name": mask.get("process_name", "")},
+		}
+	print_OpsLine("mask", DispMaskMethodsTitle)
+	jitter = mask.get("jitter") or {}
+	print(
+		f"    {_method_Mark(jitter)} jitter  "
+		f"interval={jitter.get('beacon_interval_sec', '?')}s  "
+		f"spread={jitter.get('jitter_pct', '?')}%"
 	)
-	paths = mask.get("collector_path_set") or []
-	if paths:
-		print_OpsLine("paths", ", ".join(str(p) for p in paths))
+	cover = mask.get("cover") or {}
+	print(
+		f"    {_method_Mark(cover)} cover   "
+		+ ", ".join(str(item) for item in (cover.get("urls") or []))
+	)
+	paths = mask.get("path_rotation") or {}
+	print(
+		f"    {_method_Mark(paths)} paths   "
+		+ ", ".join(str(item) for item in (paths.get("paths") or []))
+	)
+	mimicry = mask.get("mimicry") or {}
+	print(f"    {_method_Mark(mimicry)} mimicry {mimicry.get('user_agent', '')}")
+	process_mask = mask.get("process_mask") or {}
+	print(f"    {_method_Mark(process_mask)} process {process_mask.get('name', '')}")
 
 
 def print_Profile(data: dict) -> None:
@@ -216,7 +291,6 @@ def print_Profile(data: dict) -> None:
 
 	blocks = data.get("blocks") or {}
 	_print_Services(blocks.get("services") or [])
-	_print_Banners(blocks.get("banners") or [])
 	_print_Credentials(blocks.get("credentials") or [])
 	_print_Mask(blocks.get("mask") or {})
 
@@ -226,7 +300,7 @@ def print_Profile(data: dict) -> None:
 			"logging",
 			f"creds={logging.get('capture_credentials')}  "
 			f"payloads={logging.get('capture_payloads')}  "
-			f"delay={logging.get('auth_delay_ms_min')}-{logging.get('auth_delay_ms_max')}ms",
+			f"source={logging.get('capture_source_meta')}",
 		)
 	maybe_Print_RawJson(data)
 
@@ -237,6 +311,15 @@ def print_ProfileSchema(data: dict) -> None:
 	keys = data.get("block_keys") or []
 	print_OpsLine("levels", ", ".join(str(x) for x in levels))
 	print_OpsLine("blocks", ", ".join(str(x) for x in keys))
+	service_types = data.get("service_types") or []
+	auth_modes = data.get("auth_modes") or []
+	if service_types:
+		print_OpsLine("services", ", ".join(str(x) for x in service_types))
+	if auth_modes:
+		print_OpsLine("auth", ", ".join(str(x) for x in auth_modes))
+	mask_methods = data.get("mask_methods") or []
+	if mask_methods:
+		print_OpsLine("mask", ", ".join(str(x) for x in mask_methods))
 	example = data.get("example")
 	if example:
 		print()
@@ -318,10 +401,10 @@ def _payload_Summary(payload: dict | None) -> str:
 	if not payload:
 		return ""
 	parts: list[str] = []
-	for key in ("username", "password", "service", "path", "method", "port", "banner"):
+	for key in ("username", "password", "command", "service", "path", "method", "port", "banner"):
 		if key in payload and payload[key] not in (None, ""):
 			val = payload[key]
-			if key in ("username", "password"):
+			if key in ("username", "password", "command"):
 				parts.append(f"{key}={Fore.RED}{val}{Style.RESET_ALL}")
 			elif key == "path":
 				parts.append(f"{key}={Fore.YELLOW}{val}{Style.RESET_ALL}")

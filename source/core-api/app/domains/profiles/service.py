@@ -8,7 +8,13 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.db import models
-from app.domains.profiles.schemas import ProfileBlocks, ProfileCreate, ProfileOut, ProfileUpdate
+from app.domains.profiles.schemas import (
+	ProfileBlocks,
+	ProfileCreate,
+	ProfileOut,
+	ProfileUpdate,
+	assert_LevelMatches,
+)
 from app.security import compute_ConfigHash
 from app.texts import MSG_PROFILE_NOT_FOUND
 
@@ -71,6 +77,25 @@ def update_Profile(db: Session, profile_id: UUID, body: ProfileUpdate) -> Profil
 	if row is None:
 		raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=MSG_PROFILE_NOT_FOUND)
 
+	next_level = (
+		body.interaction_level.value
+		if body.interaction_level is not None
+		else row.interaction_level
+	)
+	next_blocks = (
+		body.blocks
+		if body.blocks is not None
+		else ProfileBlocks.model_validate(row.blocks or {})
+	)
+	if body.interaction_level is not None or body.blocks is not None:
+		try:
+			assert_LevelMatches(next_level, next_blocks)
+		except ValueError as exc:
+			raise HTTPException(
+				status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+				detail=str(exc),
+			) from exc
+
 	if body.name is not None:
 		row.name = body.name
 	if body.description is not None:
@@ -87,6 +112,24 @@ def update_Profile(db: Session, profile_id: UUID, body: ProfileUpdate) -> Profil
 		row.config_version,
 	)
 	row.updated_at = datetime.now(timezone.utc)
+	trap_ids = [
+		trap_id
+		for (trap_id,) in db.query(models.Trap.id)
+		.filter(models.Trap.profile_id == profile_id)
+		.all()
+	]
+	for trap_id in trap_ids:
+		db.add(
+			models.TrapCommand(
+				trap_id=trap_id,
+				command_type="reload_config",
+				payload={
+					"profile_id": str(profile_id),
+					"config_version": row.config_version,
+				},
+				status="pending",
+			)
+		)
 	db.commit()
 	db.refresh(row)
 	return _profile_ToOut(row)

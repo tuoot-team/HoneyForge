@@ -1,0 +1,289 @@
+Date : 2026-10-12 08:39:49
+Directory : /home/potjoke/projects/HoneyForge
+Total : 193 files,  20400 codes, 3640 comments, 3792 blanks, all 27832 lines
+
+Languages
++--------------+------------+------------+------------+------------+------------+
+| language     | files      | code       | comment    | blank      | total      |
++--------------+------------+------------+------------+------------+------------+
+| Go           |        122 |     15,741 |      3,596 |      2,807 |     22,144 |
+| Python       |         54 |      3,960 |         17 |        842 |      4,819 |
+| Markdown     |          3 |        140 |          0 |         48 |        188 |
+| Shell Script |          4 |        118 |          9 |         24 |        151 |
+| JSON         |          1 |        117 |          0 |          1 |        118 |
+| PowerShell   |          3 |        105 |          5 |         21 |        131 |
+| MS SQL       |          1 |         77 |          2 |         13 |         92 |
+| Properties   |          1 |         53 |          2 |         12 |         67 |
+| YAML         |          1 |         52 |          1 |          6 |         59 |
+| C            |          1 |         23 |          8 |          7 |         38 |
+| Docker       |          1 |         10 |          0 |          7 |         17 |
+| XML          |          1 |          4 |          0 |          4 |          8 |
++--------------+------------+------------+------------+------------+------------+
+
+Directories
++-------------------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| path                                                                                                                    | files      | code       | comment    | blank      | total      |
++-------------------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| .                                                                                                                       |        193 |     20,400 |      3,640 |      3,792 |     27,832 |
+| . (Files)                                                                                                               |          7 |        221 |          5 |         58 |        284 |
+| source                                                                                                                  |        186 |     20,179 |      3,635 |      3,734 |     27,548 |
+| source/cli                                                                                                              |         12 |      2,293 |          5 |        396 |      2,694 |
+| source/cli (Files)                                                                                                      |          5 |      1,092 |          2 |        238 |      1,332 |
+| source/cli/commands                                                                                                     |          7 |      1,201 |          3 |        158 |      1,362 |
+| source/core-api                                                                                                         |         48 |      1,954 |         26 |        500 |      2,480 |
+| source/core-api (Files)                                                                                                 |          2 |         62 |          1 |         13 |         76 |
+| source/core-api/app                                                                                                     |         42 |      1,667 |         12 |        446 |      2,125 |
+| source/core-api/app (Files)                                                                                             |          6 |        194 |          2 |         60 |        256 |
+| source/core-api/app/api                                                                                                 |         12 |        279 |          4 |        102 |        385 |
+| source/core-api/app/api (Files)                                                                                         |          1 |          0 |          0 |          1 |          1 |
+| source/core-api/app/api/v1                                                                                              |         11 |        279 |          4 |        101 |        384 |
+| source/core-api/app/db                                                                                                  |          4 |        129 |          1 |         43 |        173 |
+| source/core-api/app/domains                                                                                             |         20 |      1,065 |          5 |        241 |      1,311 |
+| source/core-api/app/domains (Files)                                                                                     |          1 |          0 |          0 |          1 |          1 |
+| source/core-api/app/domains/agent                                                                                       |          3 |        129 |          0 |         29 |        158 |
+| source/core-api/app/domains/audit                                                                                       |          1 |          0 |          0 |          1 |          1 |
+| source/core-api/app/domains/auth                                                                                        |          2 |          9 |          0 |          8 |         17 |
+| source/core-api/app/domains/events                                                                                      |          4 |         92 |          0 |         23 |        115 |
+| source/core-api/app/domains/pairing                                                                                     |          3 |        186 |          1 |         47 |        234 |
+| source/core-api/app/domains/profiles                                                                                    |          3 |        553 |          4 |        108 |        665 |
+| source/core-api/app/domains/traps                                                                                       |          3 |         96 |          0 |         24 |        120 |
+| source/core-api/downloads                                                                                               |          2 |         95 |          9 |         16 |        120 |
+| source/core-api/migrations                                                                                              |          1 |         77 |          2 |         13 |         92 |
+| source/core-api/nginx                                                                                                   |          1 |         53 |          2 |         12 |         67 |
+| source/honeypots                                                                                                        |        125 |     15,885 |      3,604 |      2,819 |     22,308 |
+| source/honeypots (Files)                                                                                                |          1 |          4 |          0 |          4 |          8 |
+| source/honeypots/cmd                                                                                                    |          1 |         46 |          0 |          9 |         55 |
+| source/honeypots/cmd/agent                                                                                              |          1 |         46 |          0 |          9 |         55 |
+| source/honeypots/examples                                                                                               |          1 |        117 |          0 |          1 |        118 |
+| source/honeypots/internal                                                                                               |         15 |      2,545 |         15 |        248 |      2,808 |
+| source/honeypots/internal/agent                                                                                         |          3 |        439 |          6 |         39 |        484 |
+| source/honeypots/internal/auth                                                                                          |          1 |        167 |          6 |         15 |        188 |
+| source/honeypots/internal/buffer                                                                                        |          1 |        152 |          0 |         16 |        168 |
+| source/honeypots/internal/client                                                                                        |          1 |        263 |          0 |         25 |        288 |
+| source/honeypots/internal/config                                                                                        |          2 |         91 |          2 |         13 |        106 |
+| source/honeypots/internal/low                                                                                           |          1 |        105 |          0 |         14 |        119 |
+| source/honeypots/internal/mid                                                                                           |          3 |        870 |          1 |         57 |        928 |
+| source/honeypots/internal/model                                                                                         |          1 |        345 |          0 |         50 |        395 |
+| source/honeypots/internal/state                                                                                         |          1 |         66 |          0 |          8 |         74 |
+| source/honeypots/internal/texts                                                                                         |          1 |         47 |          0 |         11 |         58 |
+| source/honeypots/vendor                                                                                                 |        107 |     13,173 |      3,589 |      2,557 |     19,319 |
+| source/honeypots/vendor/golang.org                                                                                      |        107 |     13,173 |      3,589 |      2,557 |     19,319 |
+| source/honeypots/vendor/golang.org/x                                                                                    |        107 |     13,173 |      3,589 |      2,557 |     19,319 |
+| source/honeypots/vendor/golang.org/x/crypto                                                                             |         48 |     11,174 |      2,983 |      2,055 |     16,212 |
+| source/honeypots/vendor/golang.org/x/crypto/blowfish                                                                    |          3 |        371 |         53 |         36 |        460 |
+| source/honeypots/vendor/golang.org/x/crypto/chacha20                                                                    |          7 |        312 |        149 |         80 |        541 |
+| source/honeypots/vendor/golang.org/x/crypto/cryptobyte                                                                  |          4 |        964 |        283 |        161 |      1,408 |
+| source/honeypots/vendor/golang.org/x/crypto/cryptobyte (Files)                                                          |          3 |        938 |        269 |        154 |      1,361 |
+| source/honeypots/vendor/golang.org/x/crypto/cryptobyte/asn1                                                             |          1 |         26 |         14 |          7 |         47 |
+| source/honeypots/vendor/golang.org/x/crypto/curve25519                                                                  |          1 |         45 |         38 |         11 |         94 |
+| source/honeypots/vendor/golang.org/x/crypto/internal                                                                    |          7 |        304 |        217 |         94 |        615 |
+| source/honeypots/vendor/golang.org/x/crypto/internal/alias                                                              |          2 |         26 |         28 |         13 |         67 |
+| source/honeypots/vendor/golang.org/x/crypto/internal/poly1305                                                           |          5 |        278 |        189 |         81 |        548 |
+| source/honeypots/vendor/golang.org/x/crypto/ssh                                                                         |         26 |      9,178 |      2,243 |      1,673 |     13,094 |
+| source/honeypots/vendor/golang.org/x/crypto/ssh (Files)                                                                 |         25 |      9,106 |      2,233 |      1,661 |     13,000 |
+| source/honeypots/vendor/golang.org/x/crypto/ssh/internal                                                                |          1 |         72 |         10 |         12 |         94 |
+| source/honeypots/vendor/golang.org/x/crypto/ssh/internal/bcrypt_pbkdf                                                   |          1 |         72 |         10 |         12 |         94 |
+| source/honeypots/vendor/golang.org/x/sys                                                                                |         59 |      1,999 |        606 |        502 |      3,107 |
+| source/honeypots/vendor/golang.org/x/sys/cpu                                                                            |         59 |      1,999 |        606 |        502 |      3,107 |
+| source/web-panel                                                                                                        |          1 |         47 |          0 |         19 |         66 |
++-------------------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+
+Files
++-------------------------------------------------------------------------------------------------------------------------+--------------+------------+------------+------------+------------+
+| filename                                                                                                                | language     | code       | comment    | blank      | total      |
++-------------------------------------------------------------------------------------------------------------------------+--------------+------------+------------+------------+------------+
+| /home/potjoke/projects/HoneyForge/CodeStyle.md                                                                          | Markdown     |         11 |          0 |          4 |         15 |
+| /home/potjoke/projects/HoneyForge/README.md                                                                             | Markdown     |         82 |          0 |         25 |        107 |
+| /home/potjoke/projects/HoneyForge/build.linux.sh                                                                        | Shell Script |          1 |          0 |          1 |          2 |
+| /home/potjoke/projects/HoneyForge/build_linux.ps1                                                                       | PowerShell   |         35 |          1 |          7 |         43 |
+| /home/potjoke/projects/HoneyForge/build_linux.sh                                                                        | Shell Script |         29 |          4 |          7 |         40 |
+| /home/potjoke/projects/HoneyForge/build_win.ps1                                                                         | PowerShell   |         35 |          0 |          7 |         42 |
+| /home/potjoke/projects/HoneyForge/build_windows.sh                                                                      | Shell Script |         28 |          0 |          7 |         35 |
+| /home/potjoke/projects/HoneyForge/source/cli/client.py                                                                  | Python       |        215 |          1 |         72 |        288 |
+| /home/potjoke/projects/HoneyForge/source/cli/commands/__init__.py                                                       | Python       |          0 |          0 |          1 |          1 |
+| /home/potjoke/projects/HoneyForge/source/cli/commands/auth.py                                                           | Python       |         29 |          0 |         10 |         39 |
+| /home/potjoke/projects/HoneyForge/source/cli/commands/deploy.py                                                         | Python       |        182 |          2 |         23 |        207 |
+| /home/potjoke/projects/HoneyForge/source/cli/commands/events.py                                                         | Python       |         35 |          1 |          5 |         41 |
+| /home/potjoke/projects/HoneyForge/source/cli/commands/profiles.py                                                       | Python       |        249 |          0 |         34 |        283 |
+| /home/potjoke/projects/HoneyForge/source/cli/commands/setup.py                                                          | Python       |        656 |          0 |         73 |        729 |
+| /home/potjoke/projects/HoneyForge/source/cli/commands/traps.py                                                          | Python       |         50 |          0 |         12 |         62 |
+| /home/potjoke/projects/HoneyForge/source/cli/display.py                                                                 | Python       |        403 |          0 |         60 |        463 |
+| /home/potjoke/projects/HoneyForge/source/cli/main.py                                                                    | Python       |         54 |          0 |         11 |         65 |
+| /home/potjoke/projects/HoneyForge/source/cli/parser.py                                                                  | Python       |        136 |          1 |         30 |        167 |
+| /home/potjoke/projects/HoneyForge/source/cli/texts.py                                                                   | Python       |        284 |          0 |         65 |        349 |
+| /home/potjoke/projects/HoneyForge/source/core-api/Dockerfile                                                            | Docker       |         10 |          0 |          7 |         17 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/__init__.py                                                       | Python       |          0 |          0 |          1 |          1 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/api/__init__.py                                                   | Python       |          0 |          0 |          1 |          1 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/api/v1/__init__.py                                                | Python       |          0 |          0 |          1 |          1 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/api/v1/agent.py                                                   | Python       |         24 |          1 |         11 |         36 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/api/v1/auth.py                                                    | Python       |         20 |          1 |          9 |         30 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/api/v1/collector.py                                               | Python       |         28 |          1 |         12 |         41 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/api/v1/events.py                                                  | Python       |         45 |          0 |         10 |         55 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/api/v1/health.py                                                  | Python       |         42 |          0 |         10 |         52 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/api/v1/pairing.py                                                 | Python       |         30 |          0 |         12 |         42 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/api/v1/profiles.py                                                | Python       |         54 |          0 |         18 |         72 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/api/v1/router.py                                                  | Python       |         11 |          1 |          4 |         16 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/api/v1/stubs.py                                                   | Python       |          8 |          0 |          4 |         12 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/api/v1/traps.py                                                   | Python       |         17 |          0 |         10 |         27 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/config.py                                                         | Python       |         34 |          1 |         13 |         48 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/db/__init__.py                                                    | Python       |          2 |          0 |          2 |          4 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/db/base.py                                                        | Python       |          4 |          0 |          3 |          7 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/db/models.py                                                      | Python       |         78 |          1 |         22 |        101 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/db/session.py                                                     | Python       |         45 |          0 |         16 |         61 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/deps.py                                                           | Python       |         39 |          0 |         15 |         54 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/domains/__init__.py                                               | Python       |          0 |          0 |          1 |          1 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/domains/agent/__init__.py                                         | Python       |          0 |          0 |          1 |          1 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/domains/agent/schemas.py                                          | Python       |         21 |          0 |         13 |         34 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/domains/agent/service.py                                          | Python       |        108 |          0 |         15 |        123 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/domains/audit/__init__.py                                         | Python       |          0 |          0 |          1 |          1 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/domains/auth/__init__.py                                          | Python       |          0 |          0 |          1 |          1 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/domains/auth/schemas.py                                           | Python       |          9 |          0 |          7 |         16 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/domains/events/__init__.py                                        | Python       |          0 |          0 |          1 |          1 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/domains/events/schemas.py                                         | Python       |         17 |          0 |          7 |         24 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/domains/events/service.py                                         | Python       |         42 |          0 |          7 |         49 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/domains/events/sse_hub.py                                         | Python       |         33 |          0 |          8 |         41 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/domains/pairing/__init__.py                                       | Python       |          0 |          0 |          1 |          1 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/domains/pairing/schemas.py                                        | Python       |         32 |          0 |         15 |         47 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/domains/pairing/service.py                                        | Python       |        154 |          1 |         31 |        186 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/domains/profiles/__init__.py                                      | Python       |          0 |          0 |          1 |          1 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/domains/profiles/schemas.py                                       | Python       |        430 |          4 |         86 |        520 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/domains/profiles/service.py                                       | Python       |        123 |          0 |         21 |        144 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/domains/traps/__init__.py                                         | Python       |          0 |          0 |          1 |          1 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/domains/traps/schemas.py                                          | Python       |         21 |          0 |          9 |         30 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/domains/traps/service.py                                          | Python       |         75 |          0 |         14 |         89 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/main.py                                                           | Python       |         56 |          1 |         14 |         71 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/security.py                                                       | Python       |         34 |          0 |         14 |         48 |
+| /home/potjoke/projects/HoneyForge/source/core-api/app/texts.py                                                          | Python       |         31 |          0 |          3 |         34 |
+| /home/potjoke/projects/HoneyForge/source/core-api/docker-compose.yml                                                    | YAML         |         52 |          1 |          6 |         59 |
+| /home/potjoke/projects/HoneyForge/source/core-api/downloads/install.ps1                                                 | PowerShell   |         35 |          4 |          7 |         46 |
+| /home/potjoke/projects/HoneyForge/source/core-api/downloads/install.sh                                                  | Shell Script |         60 |          5 |          9 |         74 |
+| /home/potjoke/projects/HoneyForge/source/core-api/migrations/001_init.sql                                               | MS SQL       |         77 |          2 |         13 |         92 |
+| /home/potjoke/projects/HoneyForge/source/core-api/nginx/nginx.conf                                                      | Properties   |         53 |          2 |         12 |         67 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/cmd/agent/main.go                                                    | Go           |         46 |          0 |          9 |         55 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/examples/medium-ssh-http.json                                        | JSON         |        117 |          0 |          1 |        118 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/go.mod                                                               | XML          |          4 |          0 |          4 |          8 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/internal/agent/agent.go                                              | Go           |        421 |          3 |         31 |        455 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/internal/agent/procname_linux.go                                     | Go           |         14 |          2 |          5 |         21 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/internal/agent/procname_other.go                                     | Go           |          4 |          1 |          3 |          8 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/internal/auth/policy.go                                              | Go           |        167 |          6 |         15 |        188 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/internal/buffer/buffer.go                                            | Go           |        152 |          0 |         16 |        168 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/internal/client/client.go                                            | Go           |        263 |          0 |         25 |        288 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/internal/config/config.go                                            | Go           |         53 |          1 |         10 |         64 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/internal/config/dotenv.go                                            | Go           |         38 |          1 |          3 |         42 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/internal/low/tcpbanner.go                                            | Go           |        105 |          0 |         14 |        119 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/internal/mid/fakehttp.go                                             | Go           |        193 |          0 |         14 |        207 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/internal/mid/fakessh.go                                              | Go           |        424 |          1 |         27 |        452 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/internal/mid/shell.go                                                | Go           |        253 |          0 |         16 |        269 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/internal/model/model.go                                              | Go           |        345 |          0 |         50 |        395 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/internal/state/state.go                                              | Go           |         66 |          0 |          8 |         74 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/internal/texts/texts.go                                              | Go           |         47 |          0 |         11 |         58 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/blowfish/block.go                         | Go           |        131 |         15 |         14 |        160 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/blowfish/cipher.go                        | Go           |         54 |         32 |         14 |        100 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/blowfish/const.go                         | Go           |        186 |          6 |          8 |        200 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/chacha20/chacha_arm64.go                  | Go           |          6 |          5 |          6 |         17 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/chacha20/chacha_generic.go                | Go           |        245 |        111 |         43 |        399 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/chacha20/chacha_loong64.go                | Go           |         11 |          5 |          7 |         23 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/chacha20/chacha_noasm.go                  | Go           |          5 |          4 |          5 |         14 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/chacha20/chacha_ppc64x.go                 | Go           |          6 |          5 |          6 |         17 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/chacha20/chacha_s390x.go                  | Go           |         12 |          8 |          8 |         28 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/chacha20/xor.go                           | Go           |         27 |         11 |          5 |         43 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/cryptobyte/asn1.go                        | Go           |        592 |        144 |         90 |        826 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/cryptobyte/asn1/asn1.go                   | Go           |         26 |         14 |          7 |         47 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/cryptobyte/builder.go                     | Go           |        227 |         79 |         45 |        351 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/cryptobyte/string.go                      | Go           |        119 |         46 |         19 |        184 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/curve25519/curve25519.go                  | Go           |         45 |         38 |         11 |         94 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/internal/alias/alias.go                   | Go           |         13 |         13 |          6 |         32 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/internal/alias/alias_purego.go            | Go           |         13 |         15 |          7 |         35 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/internal/poly1305/mac_noasm.go            | Go           |          2 |          4 |          4 |         10 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/internal/poly1305/poly1305.go             | Go           |         41 |         46 |         13 |        100 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/internal/poly1305/sum_asm.go              | Go           |         31 |         10 |          7 |         48 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/internal/poly1305/sum_generic.go          | Go           |        156 |        111 |         46 |        313 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/internal/poly1305/sum_s390x.go            | Go           |         48 |         18 |         11 |         77 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/ssh/buffer.go                             | Go           |         63 |         21 |         14 |         98 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/ssh/certs.go                              | Go           |        456 |        126 |         72 |        654 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/ssh/channel.go                            | Go           |        497 |        143 |         97 |        737 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/ssh/cipher.go                             | Go           |        602 |        131 |        131 |        864 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/ssh/client.go                             | Go           |        194 |        125 |         50 |        369 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/ssh/client_auth.go                        | Go           |        614 |        136 |         79 |        829 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/ssh/common.go                             | Go           |        547 |        129 |         67 |        743 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/ssh/connection.go                         | Go           |         89 |         41 |         34 |        164 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/ssh/control.go                            | Go           |        127 |         10 |         19 |        156 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/ssh/doc.go                                | Go           |          1 |         33 |          2 |         36 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/ssh/handshake.go                          | Go           |        564 |        150 |        134 |        848 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/ssh/internal/bcrypt_pbkdf/bcrypt_pbkdf.go | Go           |         72 |         10 |         12 |         94 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/ssh/kex.go                                | Go           |        643 |         90 |        132 |        865 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/ssh/keys.go                               | Go           |      1,423 |        281 |        261 |      1,965 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/ssh/mac.go                                | Go           |         61 |          9 |         15 |         85 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/ssh/messages.go                           | Go           |        697 |         73 |        124 |        894 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/ssh/mldsa.go                              | Go           |         98 |         15 |         21 |        134 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/ssh/mldsa_unsupported.go                  | Go           |         16 |          5 |          9 |         30 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/ssh/mlkem.go                              | Go           |        127 |         13 |         29 |        169 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/ssh/mux.go                                | Go           |        296 |         40 |         54 |        390 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/ssh/server.go                             | Go           |        686 |        311 |        121 |      1,118 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/ssh/session.go                            | Go           |        479 |        105 |         67 |        651 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/ssh/ssh_gss.go                            | Go           |         67 |         72 |         11 |        150 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/ssh/streamlocal.go                        | Go           |         90 |         15 |         14 |        119 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/ssh/tcpip.go                              | Go           |        407 |         92 |         49 |        548 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/crypto/ssh/transport.go                          | Go           |        262 |         67 |         55 |        384 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/byteorder.go                             | Go           |         51 |          6 |         10 |         67 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu.go                                   | Go           |        272 |         59 |         27 |        358 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_aix.go                               | Go           |         22 |          5 |          7 |         34 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_arm.go                               | Go           |         62 |          5 |          7 |         74 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_arm64.go                             | Go           |        149 |         12 |         31 |        192 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_darwin_arm64.go                      | Go           |         29 |         24 |         15 |         68 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_darwin_arm64_other.go                | Go           |         16 |          8 |          8 |         32 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_darwin_x86.go                        | Go           |         33 |         23 |          6 |         62 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_gc_arm64.go                          | Go           |          5 |          4 |          4 |         13 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_gc_riscv64.go                        | Go           |          2 |          6 |          4 |         12 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_gc_s390x.go                          | Go           |          9 |          8 |          5 |         22 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_gc_x86.go                            | Go           |          3 |          8 |          5 |         16 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_gccgo_arm64.go                       | Go           |          5 |          4 |          4 |         13 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_gccgo_s390x.go                       | Go           |          9 |          9 |          5 |         23 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_gccgo_x86.c                          | C            |         23 |          8 |          7 |         38 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_gccgo_x86.go                         | Go           |         13 |          6 |          7 |         26 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_linux.go                             | Go           |          8 |          4 |          4 |         16 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_linux_arm.go                         | Go           |         33 |          3 |          4 |         40 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_linux_arm64.go                       | Go           |         87 |         24 |         10 |        121 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_linux_loong64.go                     | Go           |         12 |          6 |          5 |         23 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_linux_mips64x.go                     | Go           |         10 |          7 |          6 |         23 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_linux_noinit.go                      | Go           |          2 |          4 |          4 |         10 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_linux_ppc64x.go                      | Go           |         18 |         10 |          7 |         35 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_linux_riscv64.go                     | Go           |         95 |         60 |         19 |        174 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_linux_s390x.go                       | Go           |         28 |          7 |          6 |         41 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_loong64.go                           | Go           |         35 |         16 |         12 |         63 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_mips64x.go                           | Go           |          7 |          4 |          5 |         16 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_mipsx.go                             | Go           |          3 |          4 |          5 |         12 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_netbsd_amd64.go                      | Go           |         33 |          9 |          6 |         48 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_netbsd_arm64.go                      | Go           |        142 |         11 |         21 |        174 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_openbsd_arm64.go                     | Go           |         40 |         11 |         15 |         66 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_other_arm.go                         | Go           |          2 |          4 |          4 |         10 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_other_arm64.go                       | Go           |          4 |          4 |          4 |         12 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_other_mips64x.go                     | Go           |          4 |          4 |          4 |         12 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_other_ppc64x.go                      | Go           |          5 |          4 |          4 |         13 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_other_riscv64.go                     | Go           |          4 |          4 |          4 |         12 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_other_x86.go                         | Go           |          4 |          4 |          4 |         12 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_ppc64x.go                            | Go           |          8 |          4 |          5 |         17 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_riscv64.go                           | Go           |         24 |          5 |          5 |         34 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_s390x.go                             | Go           |        123 |         27 |         23 |        173 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_sparc64.go                           | Go           |          3 |          5 |          5 |         13 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_wasm.go                              | Go           |          4 |          7 |          7 |         18 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_windows.go                           | Go           |         13 |          7 |          7 |         27 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_windows_arm64.go                     | Go           |         26 |          9 |          4 |         39 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_x86.go                               | Go           |        204 |         28 |         28 |        260 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_zos.go                               | Go           |          5 |          3 |          3 |         11 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/cpu_zos_s390x.go                         | Go           |         15 |          6 |          5 |         26 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/endian_big.go                            | Go           |          2 |          5 |          4 |         11 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/endian_little.go                         | Go           |          2 |          5 |          4 |         11 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/hwcap_linux.go                           | Go           |         52 |         11 |          9 |         72 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/parse.go                                 | Go           |         35 |         16 |          5 |         56 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/proc_cpuinfo_linux.go                    | Go           |         41 |          5 |          8 |         54 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/runtime_auxv.go                          | Go           |          8 |          5 |          4 |         17 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/runtime_auxv_go121.go                    | Go           |          8 |          5 |          6 |         19 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/syscall_aix_gccgo.go                     | Go           |         10 |         10 |          7 |         27 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/syscall_aix_ppc64_gc.go                  | Go           |         14 |         10 |         12 |         36 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/syscall_darwin_arm64_gc.go               | Go           |         30 |         11 |         14 |         55 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/syscall_darwin_x86_gc.go                 | Go           |         62 |         15 |         22 |         99 |
+| /home/potjoke/projects/HoneyForge/source/honeypots/vendor/golang.org/x/sys/cpu/zcpu_windows.go                          | Go           |         31 |          8 |         10 |         49 |
+| /home/potjoke/projects/HoneyForge/source/web-panel/readme.md                                                            | Markdown     |         47 |          0 |         19 |         66 |
+| Total                                                                                                                   |              |     20,400 |      3,640 |      3,792 |     27,832 |
++-------------------------------------------------------------------------------------------------------------------------+--------------+------------+------------+------------+------------+
