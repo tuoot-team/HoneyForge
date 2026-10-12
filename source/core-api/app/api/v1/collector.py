@@ -1,4 +1,4 @@
-"""Mimicry-пути коллектора (фаза 1 заготовка; разделение plane - фаза 5)."""
+"""Mimicry-пути коллектора. Снаружи их закрывает nginx, если нет X-Agent-Token."""
 
 from fastapi import APIRouter
 

@@ -22,7 +22,7 @@ CLI / Web  --HTTP + SSE-->  Control API  -->  PostgreSQL
                          Агент + honeypot  --------+
 ```
 
-Канал агента маскируется под обычный HTTPS: heartbeat на `/v1/metrics` и `/cdn/edge-check`, события на `/api/telemetry/batch`. Операторский API живёт отдельно, под `/api/`.
+Канал агента идёт на порт 80, туда же отдаётся обычная страница. Heartbeat на `/v1/metrics` и `/cdn/edge-check`, события на `/api/telemetry/batch`. Без заголовка `X-Agent-Token` эти пути отвечают страницей 404. Операторский API слушает порт 8088.
 
 ## Профиль
 
@@ -95,10 +95,10 @@ CLI / Web  --HTTP + SSE-->  Control API  -->  PostgreSQL
 - [ ] Пароль из `.env`
 
 ### Фаза 5 - Маскировка и демо
-- [ ] Статика снаружи, коллектор в скрытом location
-- [ ] Operator API и collector на разных vhost/портах
-- [ ] Чужой запрос к коллектору получает 404 или страницу
-- [ ] Гайд: профиль, атака, событие. Честный Low/Mid
+- [x] Статика снаружи, коллектор в скрытом location
+- [x] Operator API (`:8088`) и канал агента (`:80`) на разных портах
+- [x] Чужой запрос к коллектору получает страницу 404
+- [x] Гайд ниже. Low = баннер, Medium = вход или shell или HTTP. High не принимается
 
 ### Фаза 6 - Bonus
 - [ ] Personality packs, honeytokens

@@ -36,7 +36,33 @@ function Publish_Agent([string]$Src, [string]$Dest) {
 	Write-Host "[build] downloads -> $Dest"
 }
 
+function Pack_CoreApi([string]$AgentSrc, [string]$AgentName) {
+	$Stage = Join-Path $BuildRoot "core-api"
+	$Archive = Join-Path $BuildRoot "core-api.tar.gz"
+	$Src = Join-Path $SourceRoot "core-api"
+	if (Test-Path $Stage) {
+		Remove-Item -Recurse -Force $Stage
+	}
+	Write-Host "[build] core-api -> $Stage"
+	Copy-Item -Recurse -Force $Src $Stage
+	Get-ChildItem -Path $Stage -Recurse -Force -Directory -Filter __pycache__ | Remove-Item -Recurse -Force
+	Get-ChildItem -Path $Stage -Recurse -Force -File -Include *.pyc,honeyforge_local.db | Remove-Item -Force
+	Get-ChildItem -Path $Stage -Recurse -Force -File -Filter .env | Remove-Item -Force
+	Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $Stage "downloads/agent")
+	Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $Stage "downloads/agent.exe")
+	New-Item -ItemType Directory -Force -Path (Join-Path $Stage "downloads") | Out-Null
+	Copy-Item -Force $AgentSrc (Join-Path $Stage "downloads/$AgentName")
+	if (Test-Path $Archive) {
+		Remove-Item -Force $Archive
+	}
+	Write-Host "[build] archive -> $Archive"
+	tar -C $BuildRoot -czf $Archive core-api
+	Remove-Item -Recurse -Force $Stage
+}
+
 Build_Honeypots
+Pack_CoreApi (Join-Path $BuildRoot "honeypots/agent") "agent"
 
 Write-Host "[build] готово: $BuildRoot"
 Get-ChildItem (Join-Path $BuildRoot "honeypots")
+Get-Item (Join-Path $BuildRoot "core-api.tar.gz")
