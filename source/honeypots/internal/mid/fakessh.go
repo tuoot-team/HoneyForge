@@ -25,44 +25,97 @@ import (
 	"honeyforge/honeypots/internal/texts"
 )
 
+const defaultSshIdentification = "SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.6"
+
 func Is_SshBanner(banner string) bool {
 	return strings.HasPrefix(strings.ToUpper(strings.TrimLeft(banner, " \t")), "SSH-")
 }
 
-func Format_SshBanner(version string) string {
-	banner := strings.TrimSpace(version)
-	if banner == "" {
-		banner = "SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.6"
+// Ssh_Identification - строка RFC 4253 без CRLF; её же отдаём в crypto/ssh.ServerVersion.
+func Ssh_Identification(version string) string {
+	line := first_NonEmptyLine(version)
+	if line == "" {
+		return defaultSshIdentification
 	}
-	if !strings.HasPrefix(strings.ToUpper(banner), "SSH-") {
-		banner = "SSH-2.0-" + banner
-	}
-	return banner + "\r\n"
-}
-
-func Parse_ServerVersion(banner string) string {
-	line := ""
-	for _, raw := range strings.Split(banner, "\n") {
-		if strings.TrimSpace(raw) != "" {
-			line = strings.TrimSpace(raw)
-			break
-		}
-	}
-	line = strings.TrimSuffix(line, "\r")
 	upper := strings.ToUpper(line)
 	switch {
 	case strings.HasPrefix(upper, "SSH-2.0-"):
-		line = strings.TrimSpace(line[len("SSH-2.0-"):])
+		// Уже полный identification string.
+	case strings.HasPrefix(upper, "SSH-1."):
+		// Старый протокол не эмулируем - подменяем дефолтом OpenSSH 2.0.
+		return defaultSshIdentification
 	case strings.HasPrefix(upper, "SSH-"):
-		parts := strings.SplitN(line, "-", 3)
-		if len(parts) == 3 {
-			line = strings.TrimSpace(parts[2])
-		}
+		// "SSH-2.0" без softwareversion - для nmap это softmatch Version=2.0.
+		return defaultSshIdentification
+	default:
+		line = "SSH-2.0-" + line
 	}
-	if line == "" {
-		return "OpenSSH_8.2p1"
+	if !ssh_SoftwareLooksReal(line) {
+		return defaultSshIdentification
 	}
 	return line
+}
+
+func Format_SshBanner(version string) string {
+	return Ssh_Identification(version) + "\r\n"
+}
+
+// Parse_ServerVersion оставляет softwareversion+comment для логов/тестов.
+func Parse_ServerVersion(banner string) string {
+	line := Ssh_Identification(banner)
+	const prefix = "SSH-2.0-"
+	if strings.HasPrefix(strings.ToUpper(line), prefix) {
+		return strings.TrimSpace(line[len(prefix):])
+	}
+	return strings.TrimSpace(line)
+}
+
+func first_NonEmptyLine(raw string) string {
+	for _, part := range strings.Split(raw, "\n") {
+		line := strings.TrimSpace(strings.TrimSuffix(part, "\r"))
+		if line != "" {
+			return line
+		}
+	}
+	return ""
+}
+
+// nmap softmatch SSH-([\d.]+)- даёт Version=2.0, если после префикса нет узнаваемого продукта.
+func ssh_SoftwareLooksReal(identification string) bool {
+	const prefix = "SSH-2.0-"
+	if !strings.HasPrefix(strings.ToUpper(identification), prefix) {
+		return false
+	}
+	software := strings.TrimSpace(identification[len(prefix):])
+	if software == "" {
+		return false
+	}
+	// "2.0" / "2" - только номер протокола, не продукт.
+	if is_MostlyVersionNumber(software) {
+		return false
+	}
+	for _, r := range software {
+		if (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') {
+			return true
+		}
+	}
+	return false
+}
+
+func is_MostlyVersionNumber(s string) bool {
+	dot := false
+	digit := false
+	for _, r := range s {
+		switch {
+		case r >= '0' && r <= '9':
+			digit = true
+		case r == '.':
+			dot = true
+		default:
+			return false
+		}
+	}
+	return digit && (dot || len(s) <= 3)
 }
 
 func Build_Hostname(seed string) string {
@@ -133,9 +186,11 @@ func Start_FakeSsh(
 	hostKeyPath string,
 	onEvent EventHandler,
 	debug bool,
+	loadPack LoadFsPackBytes,
 ) error {
 	hostname := Build_Hostname(seed)
-	serverVersion := Parse_ServerVersion(banner)
+	// crypto/ssh сам допишет \r\n; сюда только identification без перевода строки.
+	serverVersion := Ssh_Identification(banner)
 	signer, err := Load_HostKey(hostKeyPath)
 	if err != nil {
 		return err
@@ -180,7 +235,7 @@ func Start_FakeSsh(
 			}
 			return nil, nil
 		},
-		ServerVersion: "SSH-2.0-" + serverVersion,
+		ServerVersion: serverVersion,
 	}
 	config.AddHostKey(signer)
 
@@ -218,6 +273,7 @@ func Start_FakeSsh(
 			shellModule,
 			onEvent,
 			debug,
+			loadPack,
 		)
 	}
 }
@@ -232,6 +288,7 @@ func serve_SSH(
 	shellModule model.ShellModule,
 	onEvent EventHandler,
 	debug bool,
+	loadPack LoadFsPackBytes,
 ) {
 	defer tcpConn.Close()
 	ip, sport := peerFromAddr(tcpConn.RemoteAddr())
@@ -286,6 +343,7 @@ func serve_SSH(
 			hostname,
 			shellModule,
 			onEvent,
+			loadPack,
 		)
 	}
 }
@@ -300,6 +358,7 @@ func handle_Session(
 	hostname string,
 	shellModule model.ShellModule,
 	onEvent EventHandler,
+	loadPack LoadFsPackBytes,
 ) {
 	defer channel.Close()
 	shell := New_FakeShell(
@@ -310,6 +369,7 @@ func handle_Session(
 		sourcePort,
 		port,
 		onEvent,
+		loadPack,
 	)
 
 	for req := range requests {
@@ -364,7 +424,7 @@ func run_Shell(
 	}
 	write_TTY(channel, fmt.Sprintf(texts.MsgShellWelcome, shell.Hostname, ip))
 	buf := make([]byte, 1)
-	line := strings.Builder{}
+	editor := ttyLineEditor{}
 	if maxSessionSec <= 0 {
 		maxSessionSec = 600
 	}
@@ -375,42 +435,39 @@ func run_Shell(
 	defer sessionTimer.Stop()
 	for {
 		write_TTY(channel, shell.Prompt())
-		line.Reset()
+		editor.Reset()
 		for {
 			n, err := channel.Read(buf)
 			if n > 0 {
-				ch := buf[0]
-				if ch == '\r' || ch == '\n' {
-					write_TTY(channel, "\n")
-					break
-				}
-				if ch == 3 {
-					write_TTY(channel, "^C\n")
-					line.Reset()
-					break
-				}
-				if ch == 127 || ch == 8 {
-					if line.Len() > 0 {
-						s := line.String()
-						line.Reset()
-						line.WriteString(s[:len(s)-1])
-						_, _ = io.WriteString(channel, "\b \b")
+				res := editor.Feed(buf[0])
+				if res.Redraw {
+					// Как bash: очистить экран и снова нарисовать prompt + текущий ввод.
+					write_TTY(channel, "\033[H\033[2J")
+					write_TTY(channel, shell.Prompt())
+					if cur := editor.Content(); cur != "" {
+						write_TTY(channel, cur)
 					}
 					continue
 				}
-				line.WriteByte(ch)
-				_, _ = channel.Write(buf[:1])
+				if res.Echo != "" {
+					write_TTY(channel, res.Echo)
+				}
+				if res.Done {
+					if !res.Cancel {
+						out, mustExit := shell.Run_Line(res.Line)
+						if out != "" {
+							write_TTY(channel, out)
+						}
+						if mustExit {
+							return
+						}
+					}
+					break
+				}
 			}
 			if err != nil {
 				return
 			}
-		}
-		out, mustExit := shell.Run_Line(line.String())
-		if out != "" {
-			write_TTY(channel, out)
-		}
-		if mustExit {
-			return
 		}
 	}
 }

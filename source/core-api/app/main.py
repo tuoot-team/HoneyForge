@@ -14,29 +14,27 @@ from app.texts import MSG_DEBUG_BOOT
 from app.db import models
 
 
+def ensure_Schema() -> None:
+	"""Создаёт отсутствующие таблицы (SQLite и уже живой Postgres без 002)."""
+	Base.metadata.create_all(bind=get_Engine())
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
 	settings = get_Settings()
 	if settings.DEBUG:
 		print(f"[DEBUG] {MSG_DEBUG_BOOT}; debug={settings.DEBUG}; sqlite={settings.USE_SQLITE}")
 
-	if settings.USE_SQLITE:
-		Base.metadata.create_all(bind=get_Engine())
-		if settings.DEBUG:
-			print("[DEBUG] SQLite schema create_all done")
+	ensure_Schema()
+	if settings.DEBUG:
+		print("[DEBUG] schema create_all done")
 
 	yield
 
 
-def ensure_SqliteSchema() -> None:
-	settings = get_Settings()
-	if settings.USE_SQLITE:
-		Base.metadata.create_all(bind=get_Engine())
-
-
 def create_App() -> FastAPI:
 	settings = get_Settings()
-	ensure_SqliteSchema()
+	ensure_Schema()
 	application = FastAPI(
 		title="HoneyForge Control API",
 		description=(

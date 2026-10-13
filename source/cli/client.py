@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import os
 import queue
 import threading
@@ -283,5 +282,74 @@ def stream_Events() -> SseStream:
 	return stream_Api("/api/v1/events/stream")
 
 
-def print_Json(data: Any) -> None:
-	print(json.dumps(data, ensure_ascii=False, indent=2, default=str))
+def clear_Logs() -> dict:
+	return request_Api("POST", "/api/v1/maintenance/clear-logs")
+
+
+def reset_Database() -> dict:
+	return request_Api("POST", "/api/v1/maintenance/reset")
+
+
+def deploy_Agent(
+	*,
+	host: str,
+	user: str,
+	password: str,
+	port: int = 22,
+	center_url: str | None = None,
+	timeout: float = 200.0,
+) -> dict:
+	body: dict[str, Any] = {
+		"host": host,
+		"user": user,
+		"password": password,
+		"port": port,
+	}
+	if center_url:
+		body["center_url"] = center_url
+	return request_Api("POST", "/api/v1/deploy/agent", json_body=body, timeout=timeout)
+
+
+def list_FsPacks() -> dict:
+	return request_Api("GET", "/api/v1/fs-packs/")
+
+
+def upload_FsPack(path: str, name: str | None = None, *, timeout: float = 120.0) -> dict:
+	url = get_BaseUrl() + "/api/v1/fs-packs/"
+	headers: dict[str, str] = {"Accept": "application/json"}
+	token = get_Token()
+	if not token:
+		raise ApiError("нет ACCESS_TOKEN - сначала login")
+	headers["Authorization"] = f"Bearer {token}"
+	if is_Debug():
+		print(f"[DEBUG] POST {url}")
+	data: dict[str, str] = {}
+	if name:
+		data["name"] = name
+	try:
+		with open(path, "rb") as handle:
+			files = {"file": (os.path.basename(path), handle)}
+			response = httpx.post(
+				url,
+				headers=headers,
+				data=data or None,
+				files=files,
+				timeout=timeout,
+			)
+	except OSError as exc:
+		raise ApiError(f"файл: {exc}") from exc
+	except httpx.HTTPError as exc:
+		raise ApiError(f"сеть: {type(exc).__name__}: {exc}") from exc
+	if response.status_code >= 400:
+		detail = response.text
+		try:
+			payload = response.json()
+			detail = str(payload.get("detail", payload))
+		except Exception:
+			pass
+		raise ApiError(detail, status_code=response.status_code)
+	return response.json()
+
+
+def delete_FsPack(token: str) -> None:
+	request_Api("DELETE", f"/api/v1/fs-packs/{token}")

@@ -8,6 +8,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.db import models
+from app.domains.fs_packs.service import assert_FsPacksExist
 from app.domains.profiles.schemas import (
 	ProfileBlocks,
 	ProfileCreate,
@@ -51,6 +52,7 @@ def get_Profile(db: Session, profile_id: UUID) -> ProfileOut:
 
 
 def create_Profile(db: Session, body: ProfileCreate) -> ProfileOut:
+	assert_FsPacksExist(db, body.blocks)
 	blocks_dict = _blocks_ToDict(body.blocks)
 	version = 1
 	config_hash = compute_ConfigHash(
@@ -95,6 +97,7 @@ def update_Profile(db: Session, profile_id: UUID, body: ProfileUpdate) -> Profil
 				status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
 				detail=str(exc),
 			) from exc
+		assert_FsPacksExist(db, next_blocks)
 
 	if body.name is not None:
 		row.name = body.name

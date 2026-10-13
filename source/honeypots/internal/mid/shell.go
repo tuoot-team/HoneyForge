@@ -1,6 +1,10 @@
 package mid
 
 import (
+	"crypto/md5"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"hash/fnv"
 	"strings"
@@ -18,6 +22,8 @@ type chainPart struct {
 	needOK bool
 }
 
+// FakeShell - интерактивная сессия. Tree/Dirs/Binary только в RAM;
+// при отключении SSH объект уничтожается, изменения FS не сохраняются.
 type FakeShell struct {
 	Username   string
 	Hostname   string
@@ -32,8 +38,15 @@ type FakeShell struct {
 	UptimeDays int
 	Tree       map[string]string
 	Dirs       map[string]struct{}
+	Binary     map[string]struct{}
+	BinaryData map[string][]byte
+	Meta       map[string]fileMeta
+	Env        map[string]string
 	History    []string
 }
+
+// LoadFsPackBytes - скачать архив пакета; nil = только builtin.
+type LoadFsPackBytes func(token string) ([]byte, error)
 
 func New_FakeShell(
 	username, hostname, fsPack string,
@@ -41,6 +54,7 @@ func New_FakeShell(
 	sourcePort *int,
 	port int,
 	onEvent EventHandler,
+	loadPack LoadFsPackBytes,
 ) *FakeShell {
 	if username == "" {
 		username = "user"
@@ -53,11 +67,37 @@ func New_FakeShell(
 	}
 	addr, days := fake_HostFacts(hostname)
 	tree := build_Tree(username, hostname, home, addr)
+	dirs := fill_Dirs(tree)
+	binary := map[string]struct{}{}
+
 	pack := strings.TrimSpace(fsPack)
-	if pack != "" && pack != "ubuntu-22.04" {
+	if Is_BuiltinFsPack(pack) {
+		// как раньше
+	} else if Is_PackToken(pack) && loadPack != nil {
+		raw, err := loadPack(pack)
+		if err != nil {
+			fmt.Printf(texts.MsgFsPackFallback+"\n", pack, err)
+		} else {
+			expanded, expandErr := Expand_Archive(raw)
+			if expandErr != nil || expanded == nil {
+				fmt.Printf(texts.MsgFsPackFallback+"\n", pack, expandErr)
+			} else {
+				tree = expanded.Tree
+				dirs = expanded.Dirs
+				binary = expanded.Binary
+				if len(dirs) == 0 {
+					dirs = fill_Dirs(tree)
+				}
+				dirs[home] = struct{}{}
+				add_ParentDirs(dirs, home)
+			}
+		}
+	} else if pack != "" {
+		// Свободная метка: только /etc/issue, как раньше
 		tree["/etc/issue"] = pack + "\n"
 	}
-	return &FakeShell{
+
+	shell := &FakeShell{
 		Username:   username,
 		Hostname:   hostname,
 		SourceIP:   sourceIP,
@@ -70,8 +110,16 @@ func New_FakeShell(
 		Addr:       addr,
 		UptimeDays: days,
 		Tree:       tree,
-		Dirs:       fill_Dirs(tree),
+		Dirs:       dirs,
+		Binary:     binary,
+		BinaryData: map[string][]byte{},
+		Meta:       map[string]fileMeta{},
+		Env:        map[string]string{},
 	}
+	// Системные бинарники и /proc всегда досеиваем - даже поверх fs_pack
+	shell.seed_RuntimeFs()
+	shell.sync_EnvDefaults()
+	return shell
 }
 
 func fake_HostFacts(hostname string) (string, int) {
@@ -90,6 +138,7 @@ func build_Tree(username, hostname, home, addr string) map[string]string {
 	return map[string]string{
 		"/etc/hostname":         hostname + "\n",
 		"/etc/issue":            texts.MsgShellIssue,
+		"/etc/motd":             texts.MsgShellMotd,
 		"/etc/os-release":       texts.MsgShellOsRelease,
 		"/etc/passwd":           texts.MsgShellPasswd + user_PasswdLine(username),
 		"/etc/group":            fmt.Sprintf(texts.MsgShellGroup, username),
@@ -97,8 +146,11 @@ func build_Tree(username, hostname, home, addr string) map[string]string {
 		"/etc/resolv.conf":      texts.MsgShellResolv,
 		"/proc/version":         fmt.Sprintf(texts.MsgShellUname, hostname),
 		"/var/log/syslog":       fmt.Sprintf(texts.MsgShellSyslog, hostname, hostname, username),
+		"/var/log/auth.log":     fmt.Sprintf(texts.MsgShellAuthLog, hostname, username, addr, hostname),
+		"/tmp/.keep":            "",
 		home + "/readme.txt":    texts.MsgShellReadme,
 		home + "/.bashrc":       texts.MsgShellBashrc,
+		home + "/.profile":      "# ~/.profile\n",
 		home + "/.bash_history": texts.MsgShellHistory,
 	}
 }
@@ -165,6 +217,8 @@ func (s *FakeShell) Run_Line(line string) (string, bool) {
 		return "", false
 	}
 	s.emit_Command(stripped)
+	// $(( )), $(...), `...`, затем $VAR
+	stripped = s.expand_CommandLine(stripped)
 	var out strings.Builder
 	ok := true
 	for _, part := range split_Chain(stripped) {
@@ -219,6 +273,12 @@ func command_Failed(out string) bool {
 		"not in the sudoers",
 		"Could not resolve",
 		"missing file operand",
+		"missing operand",
+		"File exists",
+		"Directory not empty",
+		"Is a directory",
+		"Permission denied",
+		"command failed",
 	}
 	for _, needle := range needles {
 		if strings.Contains(out, needle) {
@@ -228,27 +288,86 @@ func command_Failed(out string) bool {
 	return false
 }
 
+type redirectSpec struct {
+	path   string
+	append bool
+}
+
+func split_Redirect(line string) (string, *redirectSpec) {
+	// Ищем > / >> вне простых кавычек
+	inSingle, inDouble := false, false
+	for i := 0; i < len(line); i++ {
+		ch := line[i]
+		if ch == '\'' && !inDouble {
+			inSingle = !inSingle
+			continue
+		}
+		if ch == '"' && !inSingle {
+			inDouble = !inDouble
+			continue
+		}
+		if inSingle || inDouble {
+			continue
+		}
+		if ch == '>' {
+			appendMode := false
+			end := i
+			if i+1 < len(line) && line[i+1] == '>' {
+				appendMode = true
+				end = i + 1
+			}
+			left := strings.TrimSpace(line[:i])
+			right := strings.TrimSpace(line[end+1:])
+			if right == "" {
+				return left, nil
+			}
+			// Первый токен справа - путь
+			fields := strings.Fields(right)
+			return left, &redirectSpec{path: fields[0], append: appendMode}
+		}
+	}
+	return line, nil
+}
+
 func (s *FakeShell) run_Pipes(line string) (string, bool) {
-	stages := strings.Split(line, "|")
-	out, stop := s.run_One(strings.TrimSpace(stages[0]))
-	if stop || len(stages) == 1 {
-		return out, stop
+	cmdLine, redir := split_Redirect(line)
+	stages := strings.Split(cmdLine, "|")
+	out, stop := s.run_One(strings.TrimSpace(stages[0]), "")
+	if stop {
+		return out, true
 	}
 	for _, stage := range stages[1:] {
-		out = apply_Pipe(out, strings.TrimSpace(stage))
+		out = s.apply_Pipe(out, strings.TrimSpace(stage))
+	}
+	if redir != nil {
+		full := s.resolve_Path(redir.path)
+		body := out
+		if redir.append {
+			if prev, ok := s.Tree[full]; ok {
+				body = prev + out
+			}
+		}
+		if errMsg := s.write_TextFile(full, body); errMsg != "" {
+			if strings.Contains(errMsg, "Permission denied") {
+				return errMsg, false
+			}
+			return fmt.Sprintf(texts.MsgShellRedirect, redir.path), false
+		}
+		return "", false
 	}
 	return out, false
 }
 
-func apply_Pipe(input, stage string) string {
+func (s *FakeShell) apply_Pipe(input, stage string) string {
 	parts := strings.Fields(stage)
 	if len(parts) == 0 {
 		return input
 	}
+	args := positional(parts)
 	switch parts[0] {
 	case "grep":
 		needle := ""
-		if args := positional(parts); len(args) > 0 {
+		if len(args) > 0 {
 			needle = args[0]
 		}
 		if input == "" {
@@ -263,6 +382,18 @@ func apply_Pipe(input, stage string) string {
 		}
 		return b.String()
 	case "head", "tail":
+		if n, ok := pipe_ByteCount(parts, 0); ok {
+			if parts[0] == "head" {
+				if n > len(input) {
+					n = len(input)
+				}
+				return input[:n]
+			}
+			if n > len(input) {
+				n = len(input)
+			}
+			return input[len(input)-n:]
+		}
 		n := pipe_Count(parts, 10)
 		rows := strings.Split(strings.TrimRight(input, "\n"), "\n")
 		if input == "" {
@@ -283,7 +414,58 @@ func apply_Pipe(input, stage string) string {
 		if input == "" {
 			rows = nil
 		}
-		return fmt.Sprintf("%d\n", len(rows))
+		words := len(strings.Fields(input))
+		chars := len(input)
+		if has_Flag(parts, "l") {
+			return fmt.Sprintf("%d\n", len(rows))
+		}
+		if has_Flag(parts, "w") {
+			return fmt.Sprintf("%d\n", words)
+		}
+		if has_Flag(parts, "c") {
+			return fmt.Sprintf("%d\n", chars)
+		}
+		return fmt.Sprintf("%7d %7d %7d\n", len(rows), words, chars)
+	case "sort":
+		rows := strings.Split(strings.TrimRight(input, "\n"), "\n")
+		if input == "" {
+			return ""
+		}
+		for i := 0; i < len(rows); i++ {
+			for j := i + 1; j < len(rows); j++ {
+				if rows[j] < rows[i] {
+					rows[i], rows[j] = rows[j], rows[i]
+				}
+			}
+		}
+		return strings.Join(rows, "\n") + "\n"
+	case "uniq":
+		rows := strings.Split(strings.TrimRight(input, "\n"), "\n")
+		if input == "" {
+			return ""
+		}
+		var out []string
+		var prev string
+		first := true
+		for _, row := range rows {
+			if first || row != prev {
+				out = append(out, row)
+				prev = row
+				first = false
+			}
+		}
+		return strings.Join(out, "\n") + "\n"
+	case "tee":
+		return s.cmd_Tee(parts, args, input)
+	case "base64":
+		if has_Flag(parts, "d") {
+			raw, err := base64.StdEncoding.DecodeString(strings.TrimSpace(input))
+			if err != nil {
+				return "base64: invalid input\n"
+			}
+			return string(raw)
+		}
+		return base64.StdEncoding.EncodeToString([]byte(input)) + "\n"
 	default:
 		return fmt.Sprintf(texts.MsgShellNotFound, parts[0])
 	}
@@ -319,13 +501,13 @@ func pipe_Count(parts []string, fallback int) int {
 	return fallback
 }
 
-func (s *FakeShell) run_One(line string) (string, bool) {
+func (s *FakeShell) run_One(line string, stdin string) (string, bool) {
 	parts := strings.Fields(line)
 	if len(parts) == 0 {
 		return "", false
 	}
 	cmd := parts[0]
-	args := positional(parts)
+	args := s.expand_Globs(positional(parts))
 	switch cmd {
 	case "exit", "logout", "quit":
 		return texts.MsgShellLogout, true
@@ -348,39 +530,138 @@ func (s *FakeShell) run_One(line string) (string, bool) {
 			return texts.MsgShellIDRoot, false
 		}
 		return fmt.Sprintf(texts.MsgShellIDUser, s.Username, s.Username, s.Username), false
+	case "groups":
+		if s.Username == "root" {
+			return texts.MsgShellGroupsRoot, false
+		}
+		return fmt.Sprintf(texts.MsgShellGroupsUser, s.Username), false
 	case "uname":
 		if has_Flag(parts, "a") {
 			return fmt.Sprintf(texts.MsgShellUname, s.Hostname), false
 		}
+		if has_Flag(parts, "r") {
+			return "5.15.0-91-generic\n", false
+		}
+		if has_Flag(parts, "m") {
+			return "x86_64\n", false
+		}
 		return "Linux\n", false
+	case "date":
+		return fmt.Sprintf(texts.MsgShellDate, time.Now().Format("Mon Jan 2 15:04:05 MST 2006")), false
 	case "echo":
-		return strings.Join(parts[1:], " ") + "\n", false
+		return expand_Echo(parts[1:]) + "\n", false
+	case "printf":
+		if len(parts) < 2 {
+			return "", false
+		}
+		return strings.ReplaceAll(expand_Echo(parts[1:]), `\n`, "\n") + "\n", false
 	case "ls":
 		return s.cmd_Ls(parts), false
 	case "cd":
 		return s.cmd_Cd(args), false
-	case "cat", "head", "tail":
+	case "cat", "less", "more":
+		if stdin != "" && len(args) == 0 {
+			return stdin, false
+		}
 		return s.cmd_Cat(args), false
+	case "head", "tail":
+		if stdin != "" && len(args) == 0 {
+			return s.apply_Pipe(stdin, line), false
+		}
+		return s.cmd_HeadTail(cmd, parts, args), false
+	case "touch":
+		return s.cmd_Touch(args), false
+	case "mkdir":
+		return s.cmd_Mkdir(parts, args), false
+	case "rmdir":
+		return s.cmd_Rmdir(args), false
+	case "rm":
+		return s.cmd_Rm(parts, args), false
+	case "mv":
+		return s.cmd_Mv(args), false
+	case "cp":
+		return s.cmd_Cp(parts, args), false
+	case "find":
+		return s.cmd_Find(args), false
+	case "file":
+		return s.cmd_File(args), false
+	case "test", "[":
+		return s.cmd_Test(args), false
+	case "[[":
+		// Упрощённо как test без обязательного ]]
+		clean := args
+		if len(clean) > 0 && clean[len(clean)-1] == "]]" {
+			clean = clean[:len(clean)-1]
+		}
+		return s.cmd_Test(clean), false
+	case "chmod", "chown", "chgrp":
+		return "", false
+	case "tee":
+		return s.cmd_Tee(parts, args, stdin), false
 	case "history":
 		return s.cmd_History(), false
-	case "env":
-		return s.cmd_Env(), false
-	case "ps":
-		return texts.MsgShellPs, false
+	case "env", "printenv":
+		return s.cmd_Env(args), false
+	case "export":
+		return s.cmd_Export(parts[1:]), false
+	case "unset":
+		for _, name := range args {
+			delete(s.Env, name)
+		}
+		return "", false
+	case "ps", "top":
+		return s.cmd_Ps(parts), false
 	case "uptime":
 		return fmt.Sprintf(texts.MsgShellUptime, time.Now().Format("15:04:05"), s.UptimeDays), false
 	case "df":
 		return texts.MsgShellDf, false
 	case "free":
 		return texts.MsgShellFree, false
-	case "ip", "ifconfig":
+	case "mount":
+		return texts.MsgShellMount, false
+	case "netstat", "ss":
+		return s.cmd_Netstat(parts), false
+	case "ip":
+		if len(args) > 0 && (args[0] == "route" || args[0] == "r") {
+			return s.cmd_IpRoute(), false
+		}
 		brd := s.Addr
 		if dot := strings.LastIndex(s.Addr, "."); dot > 0 {
 			brd = s.Addr[:dot] + ".255"
 		}
 		return fmt.Sprintf(texts.MsgShellIp, s.Addr, brd), false
-	case "w", "who":
+	case "ifconfig":
+		brd := s.Addr
+		if dot := strings.LastIndex(s.Addr, "."); dot > 0 {
+			brd = s.Addr[:dot] + ".255"
+		}
+		return fmt.Sprintf(texts.MsgShellIp, s.Addr, brd), false
+	case "readlink":
+		return s.cmd_Readlink(parts, args), false
+	case "stat":
+		return s.cmd_Stat(args), false
+	case "tty":
+		return texts.MsgShellTty, false
+	case "w", "who", "last":
 		return fmt.Sprintf("%s   pts/0    %s\n", s.Username, s.Addr), false
+	case "base64":
+		if len(args) > 0 {
+			body, errMsg := s.read_Text(args[0])
+			if errMsg != "" {
+				return errMsg, false
+			}
+			if has_Flag(parts, "d") {
+				raw, err := base64.StdEncoding.DecodeString(strings.TrimSpace(body))
+				if err != nil {
+					return "base64: invalid input\n", false
+				}
+				return string(raw), false
+			}
+			return base64.StdEncoding.EncodeToString([]byte(body)) + "\n", false
+		}
+		return s.apply_Pipe(stdin, line), false
+	case "md5sum", "sha256sum":
+		return s.cmd_Checksum(cmd, args, stdin), false
 	case "sudo":
 		if s.Username != "root" {
 			return fmt.Sprintf(texts.MsgShellSudo, s.Username), false
@@ -389,18 +670,43 @@ func (s *FakeShell) run_One(line string) (string, bool) {
 		if rest == "" {
 			return "", false
 		}
-		return s.run_One(rest)
-	case "wget", "curl", "nc", "netcat":
+		return s.run_One(rest, stdin)
+	case "ping":
+		return s.cmd_Ping(args), false
+	case "wget", "curl", "nc", "netcat", "traceroute", "ssh", "scp":
 		host := net_Host(args)
 		if host == "" {
 			return texts.MsgShellNoNetBare, false
 		}
 		return fmt.Sprintf(texts.MsgShellNoNet, host), false
-	case "which":
-		if len(args) == 0 || !known_Command(args[0]) {
+	case "which", "type", "command":
+		name := ""
+		if cmd == "command" && len(args) >= 2 && (args[0] == "-v" || args[0] == "-V") {
+			name = args[1]
+		} else if cmd == "type" && len(args) >= 2 && args[0] == "-t" {
+			name = args[1]
+			path := which_Path(name)
+			if path == "" {
+				return "", false
+			}
+			return "file\n", false
+		} else if len(args) > 0 {
+			name = args[0]
+		}
+		if name == "" {
 			return "", false
 		}
-		return "/usr/bin/" + args[0] + "\n", false
+		path := which_Path(name)
+		if path == "" {
+			return "", false
+		}
+		return path + "\n", false
+	case "true", ":":
+		return "", false
+	case "false":
+		return "false: command failed\n", false
+	case "sleep":
+		return s.cmd_Sleep(args), false
 	case "clear":
 		return "\033[H\033[2J", false
 	default:
@@ -408,15 +714,81 @@ func (s *FakeShell) run_One(line string) (string, bool) {
 	}
 }
 
-func known_Command(name string) bool {
-	switch name {
-	case "ls", "pwd", "cd", "cat", "whoami", "id", "hostname", "uname",
-		"ps", "env", "history", "uptime", "df", "free", "ip", "echo",
-		"which", "wget", "curl", "sudo", "clear", "grep", "head", "tail", "wc":
-		return true
-	default:
-		return false
+func expand_Echo(args []string) string {
+	var b strings.Builder
+	for i, arg := range args {
+		if i > 0 {
+			b.WriteByte(' ')
+		}
+		arg = strings.ReplaceAll(arg, `\n`, "\n")
+		arg = strings.ReplaceAll(arg, `\t`, "\t")
+		b.WriteString(arg)
 	}
+	return b.String()
+}
+
+func (s *FakeShell) read_Text(raw string) (string, string) {
+	full := s.resolve_Path(raw)
+	return s.read_BytesAsString(full)
+}
+
+func (s *FakeShell) cmd_Checksum(cmd string, args []string, stdin string) string {
+	hashOne := func(data string, label string) string {
+		var sum []byte
+		if cmd == "md5sum" {
+			h := md5.Sum([]byte(data))
+			sum = h[:]
+		} else {
+			h := sha256.Sum256([]byte(data))
+			sum = h[:]
+		}
+		return hex.EncodeToString(sum) + "  " + label + "\n"
+	}
+	if len(args) == 0 {
+		return hashOne(stdin, "-")
+	}
+	var b strings.Builder
+	for _, arg := range args {
+		body, errMsg := s.read_Text(arg)
+		if errMsg != "" {
+			return errMsg
+		}
+		b.WriteString(hashOne(body, arg))
+	}
+	return b.String()
+}
+
+func known_Command(name string) bool {
+	return which_Path(name) != ""
+}
+
+func which_Path(name string) string {
+	inBin := map[string]struct{}{
+		"ls": {}, "pwd": {}, "cd": {}, "cat": {}, "less": {}, "more": {}, "touch": {},
+		"mkdir": {}, "rmdir": {}, "rm": {}, "mv": {}, "cp": {}, "echo": {}, "printf": {},
+		"sleep": {}, "bash": {}, "sh": {}, "grep": {}, "test": {}, "[": {},
+	}
+	inUsr := map[string]struct{}{
+		"find": {}, "file": {}, "chmod": {}, "chown": {}, "tee": {}, "whoami": {}, "id": {},
+		"groups": {}, "hostname": {}, "uname": {}, "ps": {}, "top": {}, "env": {}, "printenv": {},
+		"history": {}, "uptime": {}, "df": {}, "free": {}, "mount": {}, "which": {}, "type": {},
+		"command": {}, "wget": {}, "curl": {}, "sudo": {}, "clear": {}, "head": {}, "tail": {},
+		"wc": {}, "sort": {}, "uniq": {}, "base64": {}, "md5sum": {}, "sha256sum": {}, "date": {},
+		"w": {}, "who": {}, "last": {}, "true": {}, "false": {}, "help": {}, "exit": {},
+		"netstat": {}, "ss": {}, "ping": {}, "ssh": {}, "scp": {}, "readlink": {}, "stat": {},
+		"tty": {},
+	}
+	inSbin := map[string]struct{}{"ip": {}, "ifconfig": {}}
+	if _, ok := inBin[name]; ok {
+		return "/bin/" + name
+	}
+	if _, ok := inUsr[name]; ok {
+		return "/usr/bin/" + name
+	}
+	if _, ok := inSbin[name]; ok {
+		return "/sbin/" + name
+	}
+	return ""
 }
 
 func net_Host(args []string) string {
@@ -469,11 +841,45 @@ func (s *FakeShell) cmd_History() string {
 	return b.String()
 }
 
-func (s *FakeShell) cmd_Env() string {
-	return fmt.Sprintf(
-		"USER=%s\nHOME=%s\nPWD=%s\nSHELL=/bin/bash\nHOSTNAME=%s\n",
-		s.Username, s.Home, s.Cwd, s.Hostname,
-	)
+func (s *FakeShell) cmd_Env(args []string) string {
+	s.Env["PWD"] = s.Cwd
+	s.Env["USER"] = s.Username
+	s.Env["HOME"] = s.Home
+	s.Env["HOSTNAME"] = s.Hostname
+	if len(args) > 0 {
+		if val, ok := s.Env[args[0]]; ok {
+			return val + "\n"
+		}
+		return ""
+	}
+	keys := make([]string, 0, len(s.Env))
+	for key := range s.Env {
+		keys = append(keys, key)
+	}
+	for i := 0; i < len(keys); i++ {
+		for j := i + 1; j < len(keys); j++ {
+			if keys[j] < keys[i] {
+				keys[i], keys[j] = keys[j], keys[i]
+			}
+		}
+	}
+	var b strings.Builder
+	for _, key := range keys {
+		fmt.Fprintf(&b, "%s=%s\n", key, s.Env[key])
+	}
+	return b.String()
+}
+
+func (s *FakeShell) cmd_Export(args []string) string {
+	if len(args) == 0 {
+		return s.cmd_Env(nil)
+	}
+	for _, item := range args {
+		if key, val, ok := strings.Cut(item, "="); ok {
+			s.Env[key] = val
+		}
+	}
+	return ""
 }
 
 func normalize_Path(cwd, raw string) string {
@@ -523,18 +929,24 @@ func (s *FakeShell) list_Names(path string, withDot bool) []string {
 		seen[name] = true
 		names = append(names, name)
 	}
-	for full := range s.Tree {
+	collect := func(full string) {
 		var rest string
 		if path == "/" {
 			rest = full[1:]
 		} else if full == path {
-			continue
+			return
 		} else if strings.HasPrefix(full, prefix+"/") {
 			rest = full[len(prefix)+1:]
 		} else {
-			continue
+			return
 		}
 		add(strings.SplitN(rest, "/", 2)[0])
+	}
+	for full := range s.Tree {
+		collect(full)
+	}
+	for full := range s.Binary {
+		collect(full)
 	}
 	for dir := range s.Dirs {
 		if dir == "/" || dir == path {
@@ -571,11 +983,13 @@ func (s *FakeShell) cmd_Ls(parts []string) string {
 	args := positional(parts)
 	path := s.Cwd
 	if len(args) > 0 {
-		path = normalize_Path(s.Cwd, args[0])
+		path = s.resolve_Path(args[0])
 	}
 	long := has_Flag(parts, "l")
 	withDot := has_Flag(parts, "a")
-	if _, ok := s.Tree[path]; ok && !s.is_Dir(path) {
+	_, inTree := s.Tree[path]
+	_, inBin := s.Binary[path]
+	if (inTree || inBin) && !s.is_Dir(path) {
 		name := path[strings.LastIndex(path, "/")+1:]
 		if long {
 			return s.format_Entry(path, name) + "\n"
@@ -622,12 +1036,20 @@ func (s *FakeShell) format_Entry(path, name string) string {
 		if strings.HasPrefix(name, ".") {
 			mode = "-rw-------"
 		}
+	} else if data, ok := s.BinaryData[path]; ok {
+		size = len(data)
+		mode = "-rwxr-xr-x"
+	} else if _, ok := s.Binary[path]; ok {
+		size = 1024
+		mode = "-rwxr-xr-x"
 	}
 	owner := "root"
 	if strings.HasPrefix(path, s.Home) {
 		owner = s.Username
 	}
-	return fmt.Sprintf("%s 1 %s %s %8d Oct  1 08:15 %s", mode, owner, owner, size, name)
+	meta := s.meta_Of(path)
+	stamp := meta.mtime.Format("Jan _2 15:04")
+	return fmt.Sprintf("%s 1 %s %s %8d %s %s", mode, owner, owner, size, stamp, name)
 }
 
 func (s *FakeShell) cmd_Cd(args []string) string {
@@ -635,8 +1057,10 @@ func (s *FakeShell) cmd_Cd(args []string) string {
 	if len(args) > 0 {
 		raw = args[0]
 	}
-	path := normalize_Path(s.Cwd, raw)
-	if _, ok := s.Tree[path]; ok && !s.is_Dir(path) {
+	path := s.resolve_Path(raw)
+	_, inTree := s.Tree[path]
+	_, inBin := s.Binary[path]
+	if (inTree || inBin) && !s.is_Dir(path) {
 		return fmt.Sprintf(texts.MsgShellNotDir, path)
 	}
 	if !s.is_Dir(path) {
@@ -644,6 +1068,7 @@ func (s *FakeShell) cmd_Cd(args []string) string {
 		return strings.Replace(msg, "cat:", "cd:", 1)
 	}
 	s.Cwd = path
+	s.Env["PWD"] = path
 	return ""
 }
 
@@ -653,9 +1078,17 @@ func (s *FakeShell) cmd_Cat(args []string) string {
 	}
 	var b strings.Builder
 	for _, arg := range args {
-		path := normalize_Path(s.Cwd, arg)
+		path := s.resolve_Path(arg)
 		if s.is_Dir(path) {
 			return fmt.Sprintf(texts.MsgShellIsDir, path)
+		}
+		// Бинарники отдаём байтами - иначе ломается cat /proc/self/exe | head -c
+		if data, ok := s.BinaryData[path]; ok {
+			b.Write(data)
+			continue
+		}
+		if _, isBin := s.Binary[path]; isBin {
+			return fmt.Sprintf(texts.MsgShellBinary, path)
 		}
 		body, ok := s.Tree[path]
 		if !ok {

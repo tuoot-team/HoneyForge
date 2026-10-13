@@ -1,2 +1,2 @@
 Доменная логика Control API.
-Схемы (Pydantic) и сервисы по областям: профили, ловушки, pairing, агент, события, auth, audit.
+Схемы (Pydantic) и сервисы по областям: профили, ловушки, pairing, агент, события, deploy, maintenance, auth, audit.

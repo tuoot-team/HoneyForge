@@ -1,10 +1,7 @@
 MSG_HEALTH_OK = "ok"
-MSG_NOT_IMPLEMENTED = "not implemented yet"
 MSG_DEBUG_BOOT = "core-api starting"
 MSG_DB_OK = "database reachable"
 MSG_DB_FAIL = "database unreachable"
-MSG_REDIS_OK = "redis reachable"
-MSG_REDIS_FAIL = "redis unreachable"
 
 MSG_AUTH_BAD_PASSWORD = "неверный пароль"
 MSG_AUTH_REQUIRED = "нужна авторизация оператора"
@@ -31,3 +28,22 @@ MSG_PAIRING_BAD_CODE = "неверный device_code"
 MSG_PAIRING_NOT_READY = "pairing ещё не подтверждён оператором"
 MSG_AGENT_UNAUTHORIZED = "агент не авторизован"
 MSG_AGENT_NO_PROFILE = "к ловушке не привязан профиль"
+
+MSG_DEPLOY_NEED_HOST = "нужен IP хоста"
+MSG_DEPLOY_NEED_PASSWORD = "нужен пароль SSH"
+MSG_DEPLOY_BAD_CENTER = (
+	"адрес центра должен быть http:// или https:// без кавычек и пробелов"
+)
+MSG_DEPLOY_AUTH = "SSH не пустил: проверь логин, пароль и порт"
+MSG_DEPLOY_CONNECT = "нет соединения с {host}:{port}: {detail}"
+MSG_DEPLOY_RUN = "хост ответил, но агент не встал: {detail}"
+MSG_DEPLOY_CODE_TIMEOUT = (
+	"агент запущен, код pairing в логе не появился; смотри pair-list"
+)
+
+MSG_FS_PACK_NOT_FOUND = "пакет файловой системы не найден"
+MSG_FS_PACK_TOO_LARGE = "архив больше {limit_mib} MiB"
+MSG_FS_PACK_BAD_FORMAT = "нужен архив .zip или .tar.gz / .tgz"
+MSG_FS_PACK_EMPTY = "пустой файл архива"
+MSG_FS_PACK_UNKNOWN = "shell.fs_pack ссылается на неизвестный пакет: {token}"
+MSG_FS_PACK_BAD_NAME = "нужно имя пакета"

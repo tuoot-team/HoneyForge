@@ -113,6 +113,18 @@ EventsTailHintText = "Слушаю SSE /api/v1/events/stream (Ctrl+C - стоп)
 
 EventsTailStoppedText = "events-tail остановлен."
 
+WipeConfirmLogsText = "Удалить события и журнал аудита? (y/N)"
+WipeConfirmResetText = (
+	"Удалить профили, ловушки, pairing, команды, события и журнал? (y/N)"
+)
+WipeAbortedText = "Отменено."
+LogsClearedText = "Логи очищены: события {events}, журнал {audit_log}."
+DbResetText = (
+	"База сброшена: профили {profiles}, ловушки {traps}, "
+	"pairing {pairing_sessions}, команды {trap_commands}, "
+	"события {events}, журнал {audit_log}."
+)
+
 DispEmptyListText = "Пусто: {what}."
 
 DispProfilesHeaderText = "Профили ({total})"
@@ -141,16 +153,11 @@ SetupAbortText = "Развёртывание прервано. Узел можн
 
 SetupDoneText = "Ловушка в парке: {trap_name}"
 
-SetupStep1Header = "Этап 1/5 - Объект и роль приманки"
+SetupStep1Header = "Этап 1/5 - Объект"
 
 SetupStep1TipSite = (
-    "Ловушка живёт в изолированном сегменте (DMZ/lab), не в прод-сети. "
-    "Имя узла должно выглядеть как обычный хост: dmz-ssh-04, web-edge-2."
-)
-
-SetupStep1TipRole = (
-    "Роль задаёт стартовый набор. На следующем шаге можно оставить одну ловушку "
-    "или включить несколько. Уровень low или medium получится из модулей."
+	"Ловушка живёт в изолированном сегменте (DMZ/lab), не в прод-сети. "
+	"Имя узла должно выглядеть как обычный хост: dmz-ssh-04, web-edge-2."
 )
 
 SetupStep2Header = "Этап 2/5 - Модули сервиса"
@@ -188,7 +195,27 @@ SetupAuthModesHelp = """
 """
 SetupAuthBecomesLowText = "Вход выключен. SSH останется баннером, профиль будет low."
 SetupShellNeedsAuthText = "Shell без auth не бывает. Слот shell выключен."
+SetupFsPackHelp = """
+Пакет файловой системы для shell:
+  1) без файловой системы - встроенное дерево ubuntu-22.04
+  2) создать новую - загрузить zip/tar.gz с этой машины
+  3) использовать существующую - пакет уже на центре
+"""
+SetupAskFsPackModeText = "Вариант пакета FS"
+SetupAskFsPackFileText = "Путь к архиву (.zip / .tar.gz)"
+SetupAskFsPackNameText = "Имя пакета"
+SetupAskFsPackPickText = "Номер или token пакета"
+SetupFsPackUploadOkText = "Загружен пакет {token} ({name})"
+SetupFsPackNoExistingText = "На центре нет пакетов. Создайте новый или выберите встроенный."
+SetupFsPackBadPickText = "Не понял выбор. Введите номер из списка или token fsp_..."
+SetupFsPackBadFileText = "Нужен существующий файл .zip или .tar.gz / .tgz"
 SetupRoutesTipText = "Модуль routes отдаёт / и страницу входа. Отдельный список путей тут не собирается."
+SetupHttpPlainText = "Это обычный HTTP, не HTTPS. Проверка: curl http://IP-узла:{port}/"
+
+FsPackListHeaderText = "Пакеты файловой системы:"
+FsPackListEmptyText = "Пакетов пока нет"
+FsPackUploadedText = "Загружен {token} ({name}, {size})"
+FsPackDeletedText = "Удалён пакет {token}"
 
 SetupStep3Header = "Этап 3/5 - Сокрытие трафика канала"
 
@@ -255,8 +282,9 @@ SetupStep5TipProbe = (
 )
 
 SetupSshInstallTip = (
-	"CLI зайдёт на хост ловушки по SSH и сам скачает агент из центра. "
-	"Нужны IP, логин, пароль и порт SSH. Это машина, которой ты управляешь."
+	"Центр зайдёт на хост ловушки по SSH и сам скачает агент из /downloads/. "
+	"Нужны IP, логин, пароль и порт SSH. Это машина, которой ты управляешь. "
+	"С хоста ловушки должен быть доступен адрес центра."
 )
 SetupAskSshInstallText = "Поставить агент по SSH"
 SetupAskSshHostText = "IP хоста ловушки"
@@ -268,25 +296,16 @@ SetupSshLocalCenterText = (
 	"С хоста ловушки 127.0.0.1 - это он сам, не твой центр. "
 	"Укажи адрес, по которому до него достучаться, например http://10.0.0.1:8000."
 )
-SetupSshHostKeyText = "Ключ {host}: {fingerprint}. Принимаю для этой установки."
-SetupSshConnectingText = "Подключаюсь к {user}@{host}:{port} и ставлю агент..."
+SetupSshConnectingText = "Центр подключается к {user}@{host}:{port} и ставит агент..."
 SetupSshCodeText = "Код с хоста: {code}"
 SetupSshFailedText = "Поставить по SSH не вышло: {detail}"
 SetupSshManualFallbackText = "Можно поставить вручную командой с карточки."
-DeployNeedHostText = "Нужен IP хоста."
-DeployNeedPasswordText = "Нужен пароль SSH."
 DeployBadCenterText = "Адрес центра должен быть http:// или https:// без кавычек и пробелов."
-DeployNoSshText = "Нет команды ssh. Нужен OpenSSH на машине оператора."
-DeploySshAuthText = "SSH не пустил: проверь логин, пароль и порт."
-DeploySshConnectText = "Нет соединения с {host}:{port}: {detail}"
-DeploySshRunText = "Хост ответил, но агент не встал: {detail}"
-DeployCodeTimeoutText = "Агент запущен, код pairing в логе не появился. Смотри pair-list."
 
 SetupInstallCard = """
 +-----------------------------------------------------------+
 |  INSTALL CARD                                             |
 |  Узел:     {trap_name}
-|  Роль:     {role_label}
 |  Профиль:  {profile_name}
 |  Центр:    {api_base}
 |                                                           |
@@ -298,15 +317,6 @@ SetupInstallCard = """
 |  Скрипт скачает агент из /downloads/, запишет .env        |
 |  и запустит pairing. Код подтверди здесь.                 |
 +-----------------------------------------------------------+
-"""
-
-SetupRolePresetsHelp = """
-Доступные роли приманки:
-  1) corp-ssh    - SSH: banner + sticky-вход + shell
-  2) edge-http   - HTTP: personality + вход по приманке + routes
-  3) scan-bait   - SSH: только модуль banner (low)
-  4) custom      - самому включить слоты ssh / http / tcp_banner / базы
-  5) data-stores - сразу Postgres, Redis и MySQL на разных портах
 """
 
 
@@ -329,7 +339,7 @@ HelpText = """Команды HoneyForge CLI:
   logo                         - показать логотип
   setup | guide                - развернуть ловушку (мастер установки)
   deploy --host IP --user root [--port 22] [--api-base URL]
-                               - поставить агент по SSH (пароль спросит)
+                               - поставить агент через центр по SSH
   exit | quit                  - выход
   health                       - GET /health
   me                           - текущий оператор (Bearer)
@@ -362,6 +372,14 @@ Pairing / ловушки:
 События:
   events-list [--trap-id] [--type] [--source-ip] [--limit N]
   events-tail                  - realtime SSE-лента
+  logs-clear [--yes]           - удалить события и журнал аудита
+  db-reset [--yes]             - очистить профили, ловушки и логи
+
+Пакеты FS (архив для fake shell, до 32 MiB, zip/tar.gz):
+  fs-pack-list
+  fs-pack-upload --file PATH [--name N]
+  fs-pack-delete TOKEN
+  В профиле shell.fs_pack = token (fsp_...) или ubuntu-22.04 / builtin.
 
 Перед командами нужен login (пароль при старте CLI).
 API_BASE задаётся в .env (по умолчанию http://127.0.0.1:8000).

@@ -60,10 +60,29 @@ CLI / Web  --HTTP + SSE-->  Control API  -->  PostgreSQL
 
 Пример: `source/honeypots/examples/medium-ssh-http.json`.
 
+## Пакеты файловой системы (fake shell)
+
+Для SSH shell можно подставить дерево из архива вместо встроенного `ubuntu-22.04`.
+
+| Значение `modules.shell.fs_pack` | Поведение |
+|----------------------------------|-----------|
+| пусто / `ubuntu-22.04` / `builtin` | встроенное дерево агента |
+| `fsp_...` | агент скачивает архив с центра и разворачивает в память |
+
+Оператор загружает `.zip` или `.tar.gz` / `.tgz` (лимит **32 MiB**) через CLI:
+
+- `fs-pack-upload --file PATH [--name N]`
+- `fs-pack-list` / `fs-pack-delete TOKEN`
+- в мастере `setup` после shell: без FS / создать / взять существующий
+
+Архивы лежат в `source/core-api/fs-packs/` (в git не коммитятся). Агент кэширует рядом с data dir в `.fs_packs/{token}`.
+
+Тестовое дерево: `source/fs/ubuntu-lab/` (готовые `ubuntu-lab.tar.gz` / `ubuntu-lab.zip`).
+
 ## План разработки
 
 ### Фаза 0 - Каркас
-- [x] docker-compose: Postgres (+ Redis), Nginx-заготовка, FastAPI (`domains/`, `api/v1/`)
+- [x] docker-compose: Postgres, Nginx-заготовка, FastAPI (`domains/`, `api/v1/`)
 - [x] `.env` + `DEBUG`; таблицы profiles, traps, pairing, events, audit
 - [x] OpenAPI
 
@@ -85,7 +104,7 @@ CLI / Web  --HTTP + SSE-->  Control API  -->  PostgreSQL
 
 ### Фаза 3 - CLI
 - [x] login, profile create/edit/list/show, мастер `setup`
-- [x] Постановка агента по SSH из `setup` и `deploy`: IP, логин, пароль, порт
+- [x] Постановка агента по SSH через Control API (`POST /api/v1/deploy/agent`); CLI `setup`/`deploy` вызывают тот же эндпоинт
 - [x] pair, bind, traps, events, `tail`
 - [x] Стоп-критерий: собрать профиль и увидеть атаку без Web UI
 

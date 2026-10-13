@@ -22,6 +22,7 @@ const (
 	PathAgentHeartbeat     = "/api/v1/agent/heartbeat"
 	PathAgentEvents        = "/api/v1/agent/events"
 	PathAgentCommandsClaim = "/api/v1/agent/commands/claim"
+	PathAgentFsPack        = "/api/v1/agent/fs-packs/%s"
 )
 
 type AgentClient struct {
@@ -264,6 +265,47 @@ func (c *AgentClient) Claim_Commands() (*model.ClaimOut, error) {
 		return nil, err
 	}
 	return &out, nil
+}
+
+func (c *AgentClient) Get_FsPackBytes(token string) ([]byte, error) {
+	path := fmt.Sprintf(PathAgentFsPack, token)
+	url := c.BaseURL + path
+	c.debug_Log(fmt.Sprintf(texts.MsgDebugRequest, http.MethodGet, url))
+
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	hdr, err := c.headers(true)
+	if err != nil {
+		return nil, err
+	}
+	req.Header = hdr
+	req.Header.Set("Accept", "application/octet-stream")
+
+	// Архив до 32 MiB - даём запас по таймауту
+	client := c.HTTPClient
+	if client == nil {
+		client = &http.Client{Timeout: 120 * time.Second}
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != 200 {
+		body := string(raw)
+		if len(body) > 500 {
+			body = body[:500]
+		}
+		return nil, fmt.Errorf(texts.MsgErrHTTP, resp.StatusCode, body)
+	}
+	return raw, nil
 }
 
 func (c *AgentClient) Get_Cover(pathOrURL string) {

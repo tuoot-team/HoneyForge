@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import getpass
 import time
+from pathlib import Path
 
 from colorama import Fore, Style
 
 import client
-from commands.deploy import DeployError, center_IsLoopback, install_AgentOverSsh
+from commands.deploy import center_IsLoopback, install_AgentOverSsh
 from texts import (
 	MsgApiError,
 	SetupAbortText,
@@ -19,9 +20,7 @@ from texts import (
 	SetupAskSshUserText,
 	SetupInstallCard,
 	SetupIntroText,
-	SetupRolePresetsHelp,
 	SetupStep1Header,
-	SetupStep1TipRole,
 	SetupStep1TipSite,
 	SetupStep2Header,
 	SetupStep2TipCreds,
@@ -40,6 +39,10 @@ from texts import (
 	SetupAskBeaconText,
 	SetupAskCoverText,
 	SetupAskCoverUrlsText,
+	SetupAskFsPackFileText,
+	SetupAskFsPackModeText,
+	SetupAskFsPackNameText,
+	SetupAskFsPackPickText,
 	SetupAskJitterPctText,
 	SetupAskJitterText,
 	SetupAskMimicryText,
@@ -52,10 +55,16 @@ from texts import (
 	SetupAuthModesHelp,
 	SetupConcealHelp,
 	SetupCoverUrlsDefault,
+	SetupFsPackBadFileText,
+	SetupFsPackBadPickText,
+	SetupFsPackHelp,
+	SetupFsPackNoExistingText,
+	SetupFsPackUploadOkText,
 	SetupProcessNameBadText,
 	SetupUserAgentDefault,
 	ProfilePortConflictText,
 	SetupAskTrapSetText,
+	SetupHttpPlainText,
 	SetupRoutesTipText,
 	SetupTrapListHelp,
 	SetupTrapProgressText,
@@ -71,95 +80,6 @@ from texts import (
 	print_OpsLine,
 	print_SetupTip,
 )
-
-ROLE_PRESETS: dict[str, dict] = {
-	"1": {
-		"key": "corp-ssh",
-		"label": "корпоративный SSH (DMZ)",
-		"level": "medium",
-		"service": "ssh",
-		"port": 22,
-		"banner": "SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.1",
-		"creds": True,
-		"username": "root",
-		"password": "admin",
-		"auth_mode": "second_attempt_sticky",
-		"shell": True,
-		"fs_pack": "ubuntu-22.04",
-		"auth_path": "/admin",
-		"sticky_ttl": 72,
-	},
-	"2": {
-		"key": "edge-http",
-		"label": "веб-админка / edge HTTP",
-		"level": "medium",
-		"service": "http",
-		"port": 8080,
-		"banner": "nginx/1.24.0",
-		"creds": True,
-		"username": "admin",
-		"password": "admin123",
-		"auth_mode": "allow_listed",
-		"shell": False,
-		"fs_pack": "",
-		"auth_path": "/admin",
-		"sticky_ttl": 72,
-	},
-	"3": {
-		"key": "scan-bait",
-		"label": "детектор сканов (только баннер)",
-		"level": "low",
-		"service": "ssh",
-		"port": 22,
-		"banner": "SSH-2.0-OpenSSH_7.4",
-		"creds": False,
-		"username": "",
-		"password": "",
-		"auth_mode": "off",
-		"shell": False,
-		"fs_pack": "ubuntu-22.04",
-		"auth_path": "/admin",
-		"sticky_ttl": 72,
-	},
-	"4": {
-		"key": "custom",
-		"label": "ручная сборка модулей",
-		"level": "medium",
-		"service": "ssh",
-		"port": 22,
-		"banner": "SSH-2.0-OpenSSH_8.9p1",
-		"creds": True,
-		"username": "root",
-		"password": "admin",
-		"auth_mode": "second_attempt_sticky",
-		"shell": True,
-		"fs_pack": "ubuntu-22.04",
-		"auth_path": "/admin",
-		"sticky_ttl": 72,
-	},
-	"5": {
-		"key": "data-stores",
-		"label": "Postgres + Redis + MySQL",
-		"bundle": True,
-		"level": "medium",
-		"service": "postgres",
-		"port": 5432,
-		"banner": "14.10 (Ubuntu 14.10-0ubuntu0.22.04.1)",
-		"creds": True,
-		"username": "postgres",
-		"password": "postgres",
-		"auth_mode": "allow_listed",
-		"shell": False,
-		"fs_pack": "",
-		"auth_path": "/admin",
-		"sticky_ttl": 72,
-		"services": [
-			{"service": "postgres", "port": 5432, "banner": "14.10 (Ubuntu 14.10-0ubuntu0.22.04.1)"},
-			{"service": "redis", "port": 6379, "banner": "6.2.14"},
-			{"service": "mysql", "port": 3306, "banner": "5.7.42-log"},
-		],
-	},
-}
 
 DEFAULT_PORTS = {
 	"ssh": 22,
@@ -219,13 +139,6 @@ def _status_Color(status: str) -> str:
 	return status
 
 
-def _pick_Role() -> dict:
-	print(SetupRolePresetsHelp)
-	print_SetupTip(SetupStep1TipRole)
-	choice = _ask("Роль приманки (1-5)", "1") or "1"
-	return dict(ROLE_PRESETS.get(choice, ROLE_PRESETS["1"]))
-
-
 def _ask_Int(prompt: str, default: int, low: int, high: int) -> int:
 	raw = _ask(prompt, str(default)) or str(default)
 	try:
@@ -235,10 +148,84 @@ def _ask_Int(prompt: str, default: int, low: int, high: int) -> int:
 	return max(low, min(high, value))
 
 
-def _ask_Bait(role: dict, service: str) -> dict:
+def _is_ArchivePath(path: Path) -> bool:
+	lower = path.name.lower()
+	return lower.endswith(".zip") or lower.endswith(".tar.gz") or lower.endswith(".tgz")
+
+
+def _parse_UserPath(raw: str) -> Path:
+	"""Путь из ввода: срезать кавычки, ~ и сделать абсолютным от cwd."""
+	text = (raw or "").strip()
+	if len(text) >= 2 and text[0] == text[-1] and text[0] in "'\"":
+		text = text[1:-1].strip()
+	return Path(text).expanduser().resolve()
+
+
+def _ask_FsPack(default: str = "ubuntu-22.04") -> str:
+	"""Выбор: builtin / upload / existing на центре."""
+	print(SetupFsPackHelp)
+	default_mode = "1"
+	if str(default or "").startswith("fsp_"):
+		default_mode = "3"
+	mode = (_ask(SetupAskFsPackModeText, default_mode) or default_mode).strip()
+	if mode in ("1", "builtin", "ubuntu-22.04"):
+		return "ubuntu-22.04"
+	if mode in ("2", "new", "upload", "create"):
+		while True:
+			raw_path = _ask(SetupAskFsPackFileText, "") or ""
+			path = _parse_UserPath(raw_path)
+			if path.is_file() and _is_ArchivePath(path):
+				break
+			print_Attention(SetupFsPackBadFileText)
+		name = _ask(SetupAskFsPackNameText, path.stem) or path.stem
+		try:
+			data = client.upload_FsPack(str(path), name=name)
+		except client.ApiError as exc:
+			print(Fore.RED + MsgApiError.format(detail=str(exc)) + Style.RESET_ALL)
+			return "ubuntu-22.04"
+		token = data.get("token") or "ubuntu-22.04"
+		print_OpsLine(
+			"fs_pack",
+			SetupFsPackUploadOkText.format(token=token, name=data.get("name") or name),
+		)
+		return token
+	# existing
+	try:
+		data = client.list_FsPacks()
+	except client.ApiError as exc:
+		print(Fore.RED + MsgApiError.format(detail=str(exc)) + Style.RESET_ALL)
+		return "ubuntu-22.04"
+	items = data.get("items") or []
+	if not items:
+		print_Attention(SetupFsPackNoExistingText)
+		return "ubuntu-22.04"
+	for index, item in enumerate(items, start=1):
+		token = item.get("token") or "?"
+		name = item.get("name") or ""
+		fmt = item.get("format") or ""
+		print(f"  {index}) {token}  {name}  ({fmt})")
+	while True:
+		pick = (_ask(SetupAskFsPackPickText, default if str(default).startswith("fsp_") else "1") or "").strip()
+		if pick.startswith("fsp_"):
+			for item in items:
+				if item.get("token") == pick:
+					return pick
+			print_Attention(SetupFsPackBadPickText)
+			continue
+		try:
+			num = int(pick)
+		except ValueError:
+			print_Attention(SetupFsPackBadPickText)
+			continue
+		if 1 <= num <= len(items):
+			return items[num - 1].get("token") or "ubuntu-22.04"
+		print_Attention(SetupFsPackBadPickText)
+
+
+def _ask_Bait(defaults: dict, service: str) -> dict:
 	print_SetupTip(SetupStep2TipCreds)
-	username = _ask("Логин приманки", role.get("username") or "root") or "root"
-	password = _ask("Пароль приманки", role.get("password") or "admin") or "admin"
+	username = _ask("Логин приманки", defaults.get("username") or "root") or "root"
+	password = _ask("Пароль приманки", defaults.get("password") or "admin") or "admin"
 	return {
 		"id": f"{service}-bait",
 		"username": username,
@@ -247,7 +234,7 @@ def _ask_Bait(role: dict, service: str) -> dict:
 	}
 
 
-def _ask_AuthModule(role: dict, service: str) -> dict:
+def _ask_AuthModule(defaults: dict, service: str) -> dict:
 	print_OpsLine("модуль", "auth")
 	print(SetupAuthModesHelp)
 	default_choice = {
@@ -255,7 +242,7 @@ def _ask_AuthModule(role: dict, service: str) -> dict:
 		"allow_all": "1",
 		"allow_listed": "2",
 		"second_attempt_sticky": "3",
-	}.get(str(role.get("auth_mode") or "off"), "0")
+	}.get(str(defaults.get("auth_mode") or "off"), "0")
 	raw_choice = (_ask("Режим входа (0-3)", default_choice) or default_choice).strip()
 	auth_mode = {
 		"0": "off",
@@ -265,12 +252,12 @@ def _ask_AuthModule(role: dict, service: str) -> dict:
 	}.get(raw_choice, "allow_all")
 
 	credentials: list[dict] = []
-	sticky_ttl = int(role.get("sticky_ttl") or 72)
+	sticky_ttl = int(defaults.get("sticky_ttl") or 72)
 	if auth_mode == "allow_listed":
-		credentials.append(_ask_Bait(role, service))
+		credentials.append(_ask_Bait(defaults, service))
 	elif auth_mode == "second_attempt_sticky":
 		if _ask_YesNo("Пускать только учётку-приманку, не любой пароль", True):
-			credentials.append(_ask_Bait(role, service))
+			credentials.append(_ask_Bait(defaults, service))
 		else:
 			print_SetupTip("Со второй попытки примется любой пароль и привяжется к IP.")
 		sticky_ttl = _ask_Int("Сколько часов помнить пароль за IP", sticky_ttl, 1, 8760)
@@ -279,7 +266,7 @@ def _ask_AuthModule(role: dict, service: str) -> dict:
 
 	auth_path = "/admin"
 	if service == "http" and auth_mode != "off":
-		auth_path = _ask("Путь входа", role.get("auth_path") or "/admin") or "/admin"
+		auth_path = _ask("Путь входа", defaults.get("auth_path") or "/admin") or "/admin"
 		if not auth_path.startswith("/"):
 			auth_path = "/" + auth_path
 	return {
@@ -290,15 +277,15 @@ def _ask_AuthModule(role: dict, service: str) -> dict:
 	}
 
 
-def _configure_Modules(role: dict) -> dict:
+def _configure_Modules(defaults: dict) -> dict:
 	"""Слоты сервиса: banner/auth/shell или personality/auth/routes."""
-	service = role["service"]
-	port = int(role["port"])
+	service = defaults["service"]
+	port = int(defaults["port"])
 	print_OpsLine("сервис", f"{service}:{port}")
 
 	if service == "tcp_banner":
 		print_OpsLine("модуль", "banner")
-		banner = _ask("Текст баннера", role.get("banner") or "220 ftp ready") or "220 ftp ready"
+		banner = _ask("Текст баннера", defaults.get("banner") or "220 ftp ready") or "220 ftp ready"
 		face = {
 			"service": service,
 			"port": port,
@@ -319,32 +306,33 @@ def _configure_Modules(role: dict) -> dict:
 		print_OpsLine("модуль", "banner")
 		banner = _ask(
 			"Версия баннера",
-			role.get("banner") or "SSH-2.0-OpenSSH_8.9p1",
+			defaults.get("banner") or "SSH-2.0-OpenSSH_8.9p1",
 		) or "SSH-2.0-OpenSSH_8.9p1"
-		auth = _ask_AuthModule(role, service)
+		auth = _ask_AuthModule(defaults, service)
 		shell_enabled = False
-		fs_pack = role.get("fs_pack") or "ubuntu-22.04"
+		fs_pack = defaults.get("fs_pack") or "ubuntu-22.04"
 		if auth["auth_mode"] == "off":
 			print_Attention(SetupShellNeedsAuthText)
 		else:
 			print_OpsLine("модуль", "shell")
-			shell_enabled = _ask_YesNo("Пускать в ограниченный shell", bool(role.get("shell", True)))
+			shell_enabled = _ask_YesNo("Пускать в ограниченный shell", bool(defaults.get("shell", True)))
 			if shell_enabled:
-				fs_pack = _ask("Пакет файловой системы", fs_pack) or fs_pack
+				fs_pack = _ask_FsPack(fs_pack)
 		level = "low" if auth["auth_mode"] == "off" else "medium"
 	elif service in ("postgres", "redis", "mysql"):
 		print_OpsLine("модуль", "banner")
-		banner = _ask("Версия", role.get("banner") or DEFAULT_BANNERS[service]) or DEFAULT_BANNERS[service]
-		auth = _ask_AuthModule(role, service)
+		banner = _ask("Версия", defaults.get("banner") or DEFAULT_BANNERS[service]) or DEFAULT_BANNERS[service]
+		auth = _ask_AuthModule(defaults, service)
 		shell_enabled = False
 		fs_pack = ""
 		level = "medium"
 	else:
 		print_OpsLine("модуль", "personality")
-		banner = _ask("Заголовок Server", role.get("banner") or "nginx/1.24.0") or "nginx/1.24.0"
-		auth = _ask_AuthModule(role, service)
+		banner = _ask("Заголовок Server", defaults.get("banner") or "nginx/1.24.0") or "nginx/1.24.0"
+		auth = _ask_AuthModule(defaults, service)
 		print_OpsLine("модуль", "routes")
 		print_SetupTip(SetupRoutesTipText)
+		print_SetupTip(SetupHttpPlainText.format(port=port))
 		shell_enabled = False
 		fs_pack = ""
 		level = "medium"
@@ -450,21 +438,6 @@ def _assert_TrapsFit(faces: list[dict]) -> None:
 TRAP_ORDER = ("ssh", "http", "tcp_banner", "postgres", "redis", "mysql")
 
 
-def _default_TrapNumbers(role: dict) -> str:
-	if role.get("bundle"):
-		numbers = []
-		for spec in role.get("services") or []:
-			service = spec["service"]
-			if service in TRAP_ORDER:
-				numbers.append(str(TRAP_ORDER.index(service) + 1))
-		if numbers:
-			return ",".join(numbers)
-	service = role.get("service") or "ssh"
-	if service not in TRAP_ORDER:
-		service = "ssh"
-	return str(TRAP_ORDER.index(service) + 1)
-
-
 def _parse_TrapList(raw: str) -> list[str]:
 	names: list[str] = []
 	for part in raw.replace(";", ",").split(","):
@@ -485,9 +458,9 @@ def _parse_TrapList(raw: str) -> list[str]:
 	return names
 
 
-def _ask_TrapSelection(role: dict) -> list[str]:
+def _ask_TrapSelection() -> list[str]:
 	print(SetupTrapListHelp)
-	default = _default_TrapNumbers(role)
+	default = "1"
 	while True:
 		raw = _ask(SetupAskTrapSetText, default) or default
 		try:
@@ -501,12 +474,7 @@ def _ask_TrapSelection(role: dict) -> list[str]:
 		return names
 
 
-def _role_ForService(role: dict, service: str) -> dict:
-	if role.get("service") == service and not role.get("bundle"):
-		item = dict(role)
-		item["service"] = service
-		item["banner"] = role.get("banner") or DEFAULT_BANNERS[service]
-		return item
+def _defaults_ForService(service: str) -> dict:
 	username = "root"
 	password = "admin"
 	auth_mode = "allow_listed"
@@ -534,59 +502,18 @@ def _role_ForService(role: dict, service: str) -> dict:
 	}
 
 
-def _configure_Bundle(role: dict, selected: list[str]) -> list[dict]:
-	auth = _ask_AuthModule(role, "db")
-	linked_ids = []
-	if auth["auth_mode"] in ("allow_listed", "second_attempt_sticky"):
-		linked_ids = [item["id"] for item in auth["credentials"]]
-	banners = {
-		spec["service"]: spec["banner"]
-		for spec in role.get("services") or []
-	}
-	faces = []
-	taken: set[int] = set()
-	total = len(selected)
-	for index, service in enumerate(selected, start=1):
-		print()
-		print(Fore.CYAN + Style.BRIGHT + SetupTrapProgressText.format(index=index, total=total) + Style.RESET_ALL)
-		port = _ask_FreePort(taken, DEFAULT_PORTS[service])
-		taken.add(port)
-		print_OpsLine("сервис", f"{service}:{port}")
-		faces.append({
-			"service": service,
-			"port": port,
-			"banner": banners.get(service) or DEFAULT_BANNERS[service],
-			"credentials": auth["credentials"] if not faces else [],
-			"credential_ids": list(linked_ids),
-			"auth_mode": auth["auth_mode"],
-			"sticky_ttl": auth["sticky_ttl"],
-			"shell_enabled": False,
-			"fs_pack": "",
-			"auth_path": auth["auth_path"],
-			"level": "medium",
-		})
-	print_OpsLine("уровень", "medium")
-	return faces
-
-
-def _configure_All(role: dict) -> list[dict]:
+def _configure_All() -> list[dict]:
 	_step_Header(SetupStep2Header)
 	print_SetupTip(SetupStep2TipService)
-	selected = _ask_TrapSelection(role)
-	db_services = {"postgres", "redis", "mysql"}
-	if role.get("bundle") and set(selected) <= db_services:
-		faces = _configure_Bundle(role, selected)
-		_assert_TrapsFit(faces)
-		return faces
+	selected = _ask_TrapSelection()
 	faces = []
 	taken: set[int] = set()
 	total = len(selected)
 	for index, service in enumerate(selected, start=1):
-		item = _role_ForService(role, service)
-		default_port = int(item.get("port") or DEFAULT_PORTS[service])
+		item = _defaults_ForService(service)
 		print()
 		print(Fore.CYAN + Style.BRIGHT + SetupTrapProgressText.format(index=index, total=total) + Style.RESET_ALL)
-		item["port"] = _ask_FreePort(taken, default_port)
+		item["port"] = _ask_FreePort(taken, int(item["port"]))
 		face = _configure_Modules(item)
 		faces.append(face)
 		taken.add(int(face["port"]))
@@ -689,11 +616,10 @@ def _service_Block(face: dict, service_id: str) -> dict:
 
 def _save_Profile(
 	trap_name: str,
-	role: dict,
 	faces: list[dict],
 	stealth: dict,
 ) -> tuple[str, str]:
-	profile_name = f"{role['key']}-{trap_name}"
+	profile_name = trap_name
 	_assert_TrapsFit(faces)
 	level = "low"
 	credentials = []
@@ -714,7 +640,7 @@ def _save_Profile(
 
 	body = {
 		"name": profile_name,
-		"description": f"ловушка {trap_name} / {role['label']}",
+		"description": f"ловушка {trap_name}",
 		"interaction_level": level,
 		"blocks": {
 			"services": service_blocks,
@@ -748,7 +674,7 @@ def _save_Profile(
 					"name": stealth["process_name"],
 				},
 				"decoy_content_seed": trap_name,
-				"service_personality": role["key"],
+				"service_personality": "",
 			},
 		},
 	}
@@ -760,24 +686,22 @@ def _save_Profile(
 	print(Fore.GREEN + "Конфиг приманки сохранён в центре." + Style.RESET_ALL)
 	print_OpsLine("Профиль", profile_name)
 	print_OpsLine("ID", profile_id)
-	print_OpsLine("Роль", role["label"])
 	return profile_id, profile_name
 
 
-def _print_InstallCard(trap_name: str, role: dict, profile_name: str) -> None:
+def _print_InstallCard(trap_name: str, profile_name: str) -> None:
 	card = SetupInstallCard.format(
 		trap_name=trap_name,
-		role_label=role["label"],
 		profile_name=profile_name,
 		api_base=client.get_BaseUrl(),
 	)
 	print(Fore.MAGENTA + card + Style.RESET_ALL)
 
 
-def _install_OverSsh(trap_name: str, role: dict, profile_name: str) -> str | None:
+def _install_OverSsh(trap_name: str, profile_name: str) -> str | None:
 	print_SetupTip(SetupSshInstallTip)
 	if not _ask_YesNo(SetupAskSshInstallText, True):
-		_print_InstallCard(trap_name, role, profile_name)
+		_print_InstallCard(trap_name, profile_name)
 		_pause("Отдай карточку на хост ловушки, затем Enter")
 		return None
 
@@ -799,10 +723,10 @@ def _install_OverSsh(trap_name: str, role: dict, profile_name: str) -> str | Non
 			port=port,
 			center_url=center,
 		)
-	except DeployError as exc:
+	except client.ApiError as exc:
 		print_Attention(SetupSshFailedText.format(detail=str(exc)))
 		print_SetupTip(SetupSshManualFallbackText)
-		_print_InstallCard(trap_name, role, profile_name)
+		_print_InstallCard(trap_name, profile_name)
 		return None
 
 
@@ -942,14 +866,11 @@ def cmd_Setup(_args) -> None:
 		print_OpsLine("Сегмент", segment)
 		print_Attention("Сегмент ловушки изолирован от продакшена.")
 
-		role = _pick_Role()
-		print_OpsLine("Роль", role["label"])
-
-		faces = _configure_All(role)
+		faces = _configure_All()
 		stealth = _ask_Stealth()
-		profile_id, profile_name = _save_Profile(trap_name, role, faces, stealth)
+		profile_id, profile_name = _save_Profile(trap_name, faces, stealth)
 
-		known_code = _install_OverSsh(trap_name, role, profile_name)
+		known_code = _install_OverSsh(trap_name, profile_name)
 		trap_id = _wait_AndApprove(profile_id, trap_name, known_code)
 		_commission_Trap(trap_id, profile_id, trap_name)
 

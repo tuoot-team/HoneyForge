@@ -13,8 +13,6 @@ for d in /proc/[0-9]*; do
 done
 rm -rf "$dest"
 
-redis:
-printf '*1\r\n$4\r\nPING\r\n*2\r\n$4\r\nAUTH\r\n$8\r\npostgres\r\n*3\r\n$3\r\nSET\r\n$1\r\na\r\n$1\r\nb\r\n' | nc HOST 6379
 postgres: 
 PGPASSWORD=postgres psql "host=HOST port=5432 user=postgres dbname=postgres" -c "select version();"
 MySQL:

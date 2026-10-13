@@ -98,3 +98,16 @@ class TrapCommand(Base):
 	status: Mapped[str] = mapped_column(Text, nullable=False, default="pending")
 	created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 	claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class FsPack(Base):
+	__tablename__ = "fs_packs"
+
+	id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+	token: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+	name: Mapped[str] = mapped_column(Text, nullable=False)
+	original_filename: Mapped[str] = mapped_column(Text, nullable=False, default="")
+	format: Mapped[str] = mapped_column(Text, nullable=False)
+	size_bytes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+	sha256: Mapped[str] = mapped_column(Text, nullable=False, default="")
+	created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

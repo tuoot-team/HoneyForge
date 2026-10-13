@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -114,6 +115,29 @@ func (a *Agent) Ensure_TokenOrPair(ctx context.Context) error {
 		return err
 	}
 	return a.Ensure_Token()
+}
+
+// Load_FsPack - скачать архив с центра, кэш рядом с data dir.
+func (a *Agent) Load_FsPack(token string) ([]byte, error) {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return nil, fmt.Errorf("пустой токен fs pack")
+	}
+	dataDir := config.Get_DataDir(a.Root)
+	cacheDir := filepath.Join(dataDir, ".fs_packs")
+	cachePath := filepath.Join(cacheDir, token)
+	if raw, err := os.ReadFile(cachePath); err == nil && len(raw) > 0 {
+		return raw, nil
+	}
+	raw, err := a.Client.Get_FsPackBytes(token)
+	if err != nil {
+		return nil, err
+	}
+	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
+		return raw, nil
+	}
+	_ = os.WriteFile(cachePath, raw, 0o600)
+	return raw, nil
 }
 
 func (a *Agent) Load_Config() error {
@@ -368,6 +392,7 @@ func (a *Agent) run_Honeypots(ctx context.Context) {
 					a.HostKeyPath,
 					a.On_Event,
 					a.Debug,
+					a.Load_FsPack,
 				)
 			case "http":
 				credentials := profile.CredentialsFor(

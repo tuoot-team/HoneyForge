@@ -5,6 +5,8 @@ from colorama import Fore, Style
 
 from commands.auth import cmd_Health, cmd_Logout, cmd_Me
 from commands.events import cmd_EventsList, cmd_EventsTail
+from commands.fs_packs import cmd_FsPackDelete, cmd_FsPackList, cmd_FsPackUpload
+from commands.maintenance import cmd_DbReset, cmd_LogsClear
 from commands.profiles import (
 	cmd_ProfileCreate,
 	cmd_ProfileDelete,
@@ -150,6 +152,26 @@ def create_parser() -> argparse.ArgumentParser:
 
 	p_et = sub.add_parser("events-tail", help="SSE-лента событий (Ctrl+C стоп)")
 	p_et.set_defaults(func=cmd_EventsTail)
+
+	p_lc = sub.add_parser("logs-clear", help="удалить события и журнал аудита")
+	p_lc.add_argument("--yes", action="store_true", help="без подтверждения")
+	p_lc.set_defaults(func=cmd_LogsClear)
+
+	p_dr = sub.add_parser("db-reset", help="очистить данные центра")
+	p_dr.add_argument("--yes", action="store_true", help="без подтверждения")
+	p_dr.set_defaults(func=cmd_DbReset)
+
+	p_fpl = sub.add_parser("fs-pack-list", help="список пакетов файловой системы")
+	p_fpl.set_defaults(func=cmd_FsPackList)
+
+	p_fpu = sub.add_parser("fs-pack-upload", help="загрузить архив FS (.zip / .tar.gz)")
+	p_fpu.add_argument("--file", required=True, help="путь к архиву")
+	p_fpu.add_argument("--name", default="", help="имя пакета")
+	p_fpu.set_defaults(func=cmd_FsPackUpload)
+
+	p_fpd = sub.add_parser("fs-pack-delete", help="удалить пакет FS")
+	p_fpd.add_argument("token", help="token пакета fsp_...")
+	p_fpd.set_defaults(func=cmd_FsPackDelete)
 
 	return parser
 

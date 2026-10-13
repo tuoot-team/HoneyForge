@@ -1,6 +1,10 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Каталог пакетов рядом с app/../fs-packs
+_DEFAULT_FS_PACKS_DIR = str(Path(__file__).resolve().parents[1] / "fs-packs")
 
 
 class Settings(BaseSettings):
@@ -23,14 +27,15 @@ class Settings(BaseSettings):
 	POSTGRES_PASSWORD: str = "honeyforge"
 	POSTGRES_DB: str = "honeyforge"
 
-	REDIS_URL: str = "redis://localhost:6379/0"
-
 	OPERATOR_PASSWORD: str = "change-me"
 	OPERATOR_TOKEN_SECRET: str = "dev-change-me-operator-secret"
 	PUBLIC_BASE_URL: str = "http://localhost"
 
 	AGENT_STALE_MINUTES: int = 5
 	PAIRING_TTL_MINUTES: int = 15
+
+	FS_PACKS_DIR: str = _DEFAULT_FS_PACKS_DIR
+	FS_PACK_MAX_BYTES: int = 32 * 1024 * 1024
 
 	@property
 	def database_url(self) -> str:

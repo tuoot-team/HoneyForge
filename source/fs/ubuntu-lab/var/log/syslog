@@ -1,0 +1,2 @@
+Oct  1 08:15:01 web-lab-01 CRON[812]: (root) CMD (test -x /usr/sbin/anacron || true)
+Oct  1 08:17:22 web-lab-01 systemd[1]: Started Session 4 of User ubuntu.
