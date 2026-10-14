@@ -273,6 +273,13 @@ def _print_Mask(mask: dict) -> None:
 			"process_mask": {"enabled": True, "name": mask.get("process_name", "")},
 		}
 	print_OpsLine("mask", DispMaskMethodsTitle)
+	mode = mask.get("collection_mode") or "agent"
+	print(f"    collection_mode={mode}")
+	courier = mask.get("courier") or {}
+	print(
+		f"    {_method_Mark(courier)} courier  "
+		f"interval={courier.get('collect_interval_sec', '?')}s"
+	)
 	jitter = mask.get("jitter") or {}
 	print(
 		f"    {_method_Mark(jitter)} jitter  "
@@ -353,7 +360,7 @@ def print_TrapList(items: list) -> None:
 	print_Section(DispTrapsHeaderText.format(total=len(items)))
 	print(
 		f"  {Style.DIM}"
-		f"{'id':<10} {'status':<10} {'last_seen':<19}  name"
+		f"{'id':<10} {'status':<10} {'owner':<10} {'last_seen':<19}  name"
 		f"{Style.RESET_ALL}"
 	)
 	for item in items:
@@ -361,11 +368,12 @@ def print_TrapList(items: list) -> None:
 		raw_status = str(item.get("status") or "?")
 		status = paint_Status(raw_status)
 		pad = " " * max(0, 10 - len(raw_status))
+		owner = short_Id(item.get("owner_user_id")) if item.get("owner_user_id") else "-"
 		seen = format_Time(item.get("last_seen_at"))
 		name = item.get("name", "?")
 		print(
 			f"  {Fore.GREEN}{tid:<10}{Style.RESET_ALL}"
-			f"{status}{pad} {seen:<19}  {Style.BRIGHT}{name}{Style.RESET_ALL}"
+			f"{status}{pad} {owner:<10} {seen:<19}  {Style.BRIGHT}{name}{Style.RESET_ALL}"
 		)
 	maybe_Print_RawJson(items)
 
@@ -374,6 +382,7 @@ def print_Trap(data: dict) -> None:
 	print_Section(f"trap  {data.get('name', '?')}")
 	print_OpsLine("id", str(data.get("id", "?")))
 	print_OpsLine("status", paint_Status(data.get("status")))
+	print_OpsLine("owner", str(data.get("owner_user_id") or "-"))
 	print_OpsLine("profile", str(data.get("profile_id") or "-"))
 	print_OpsLine("last_seen", format_Time(data.get("last_seen_at")))
 	print_OpsLine("created", format_Time(data.get("created_at")))

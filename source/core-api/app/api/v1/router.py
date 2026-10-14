@@ -4,6 +4,7 @@ from app.api.v1 import (
 	agent,
 	auth,
 	collector,
+	couriers,
 	deploy,
 	events,
 	fs_packs,
@@ -25,6 +26,7 @@ api_v1_router.include_router(profiles.router)
 api_v1_router.include_router(traps.router)
 api_v1_router.include_router(pairing.router)
 api_v1_router.include_router(agent.router)
+api_v1_router.include_router(couriers.router)
 api_v1_router.include_router(events.router)
 api_v1_router.include_router(maintenance.router)
 api_v1_router.include_router(deploy.router)

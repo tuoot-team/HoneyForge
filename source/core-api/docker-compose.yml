@@ -11,6 +11,9 @@ services:
       - hf_pg_data:/var/lib/postgresql/data
       - ./migrations/001_init.sql:/docker-entrypoint-initdb.d/001_init.sql:ro
       - ./migrations/002_fs_packs.sql:/docker-entrypoint-initdb.d/002_fs_packs.sql:ro
+      - ./migrations/003_users_roles.sql:/docker-entrypoint-initdb.d/003_users_roles.sql:ro
+      - ./migrations/004_trap_owner.sql:/docker-entrypoint-initdb.d/004_trap_owner.sql:ro
+      - ./migrations/005_courier.sql:/docker-entrypoint-initdb.d/005_courier.sql:ro
     ports:
       - "5432:5432"
     healthcheck:
@@ -36,16 +39,25 @@ services:
       - "8000"
 
   nginx:
-    image: nginx:1.27-alpine
+    build: ./nginx
     ports:
       - "80:80"
+      - "443:443"
       - "8088:8088"
+    env_file:
+      - .env
+    environment:
+      TLS_DOMAIN: ${TLS_DOMAIN:-}
+      TLS_EMAIL: ${TLS_EMAIL:-}
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/www:/usr/share/nginx/html/site:ro
       - ./downloads:/usr/share/nginx/html/downloads:ro
+      - hf_certs:/etc/letsencrypt
+      - hf_certbot_www:/var/www/certbot
     depends_on:
       - api
 
 volumes:
   hf_pg_data:
+  hf_certs:
+  hf_certbot_www:

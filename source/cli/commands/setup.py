@@ -7,7 +7,12 @@ from pathlib import Path
 from colorama import Fore, Style
 
 import client
-from commands.deploy import center_IsLoopback, install_AgentOverSsh
+from commands.deploy import (
+	center_IsLoopback,
+	check_CenterUrl,
+	install_AgentOverSsh,
+	public_Agent_Center_Url,
+)
 from texts import (
 	MsgApiError,
 	SetupAbortText,
@@ -18,6 +23,7 @@ from texts import (
 	SetupAskSshPasswordText,
 	SetupAskSshPortText,
 	SetupAskSshUserText,
+	SetupCourierInstallCard,
 	SetupInstallCard,
 	SetupIntroText,
 	SetupStep1Header,
@@ -25,14 +31,44 @@ from texts import (
 	SetupStep2Header,
 	SetupStep2TipCreds,
 	SetupStep2TipService,
+	SetupAskCollectIntervalText,
+	SetupAskCreateCourierText,
+	SetupAskCourierCenterText,
+	SetupAskCourierDeployText,
+	SetupAskCourierHostText,
+	SetupAskCourierNameText,
+	SetupAskDeliveryText,
+	SetupAskOwnerReassignText,
+	SetupAskTrapCourierSshText,
+	SetupApproveNodeText,
+	SetupAskOwnerUserIdText,
+	SetupAskPairListRetryText,
+	SetupCourierCodeMissingText,
+	SetupCourierCommissionOkText,
+	SetupCourierConnectingText,
+	SetupCourierCreatedText,
+	SetupCourierDeployFailedText,
+	SetupCourierDeployTip,
+	SetupCourierManualLaterText,
+	SetupDeliveryCourierTip,
+	SetupDoneTipText,
+	SetupHostWillFinishText,
+	SetupOwnerSetOkText,
+	SetupOwnerSetSkipText,
+	SetupOwnerUsersEmptyText,
+	SetupOwnerUsersListDeniedText,
 	SetupStep3Header,
 	SetupStep3TipJitter,
 	SetupStep3TipMask,
 	SetupStep4ApprovedText,
+	SetupStep4BadCodeText,
+	SetupStep4BadCodeTipText,
 	SetupStep4Header,
 	SetupStep4TipCodeTtl,
 	SetupStep4TipInstall,
+	SetupStep4TipOwner,
 	SetupStep4WaitingText,
+	TrapCourierSshSavedText,
 	SetupStep5Header,
 	SetupStep5TipOnline,
 	SetupStep5TipProbe,
@@ -367,10 +403,97 @@ def _ask_UrlList(prompt: str, default: str) -> list[str]:
 	return parts
 
 
+def _setup_Courier_Agent() -> None:
+	"""Как установка ловушки: SSH deploy → код из лога → сразу confirm, без ручного ввода."""
+	if not _ask_YesNo(SetupAskCreateCourierText, True):
+		return
+	name = _ask(SetupAskCourierNameText, "courier-01") or "courier-01"
+	print_SetupTip(SetupCourierDeployTip)
+	if not _ask_YesNo(SetupAskCourierDeployText, True):
+		_print_Courier_InstallCard(name)
+		print_SetupTip(SetupCourierManualLaterText)
+		return
+
+	host = (_ask(SetupAskCourierHostText, "") or "").strip()
+	if not host:
+		_print_Courier_InstallCard(name)
+		print_SetupTip(SetupCourierManualLaterText)
+		return
+	user = (_ask(SetupAskSshUserText, "root") or "root").strip()
+	port = _ask_Int(SetupAskSshPortText, 22, 1, 65535)
+	password = getpass.getpass(Fore.GREEN + SetupAskSshPasswordText + Style.RESET_ALL)
+	api_base = client.get_BaseUrl()
+	default_center = _public_Center_For_Card()
+	if center_IsLoopback(api_base):
+		print_Attention(SetupSshLocalCenterText)
+		center_raw = (_ask(SetupAskCourierCenterText, "") or "").strip()
+	else:
+		center_raw = (
+			_ask(SetupAskCourierCenterText, default_center) or default_center
+		).strip()
+
+	try:
+		center = check_CenterUrl(center_raw)
+		# downloads/courier только на публичном канале
+		center = public_Agent_Center_Url(center)
+		print(SetupCourierConnectingText.format(user=user, host=host, port=port))
+		result = client.deploy_Courier(
+			host=host,
+			user=user,
+			password=password,
+			center_url=center,
+			port=port,
+		)
+		code = str(result.get("device_code") or "").strip()
+		if not code:
+			print_Attention(
+				SetupCourierDeployFailedText.format(detail=SetupCourierCodeMissingText)
+			)
+			_print_Courier_InstallCard(name)
+			print_SetupTip(SetupCourierManualLaterText)
+			return
+		print(Fore.GREEN + SetupSshCodeText.format(code=code) + Style.RESET_ALL)
+		out = client.confirm_Courier_Pairing(code, name=name)
+		print(
+			Fore.GREEN
+			+ SetupCourierCreatedText.format(
+				name=name, courier_id=out.get("courier_id", "?")
+			)
+			+ Style.RESET_ALL
+		)
+	except client.ApiError as exc:
+		print_Attention(SetupCourierDeployFailedText.format(detail=str(exc)))
+		_print_Courier_InstallCard(name)
+		print_SetupTip(SetupCourierManualLaterText)
+
+
 def _ask_Stealth() -> dict:
 	_step_Header(SetupStep3Header)
 	print_SetupTip(SetupStep3TipMask)
 	print(SetupConcealHelp)
+
+	delivery_raw = (_ask(SetupAskDeliveryText, "1") or "1").strip()
+	courier_mode = delivery_raw in ("2", "courier", "c", "курьер")
+
+	if courier_mode:
+		print_SetupTip(SetupDeliveryCourierTip)
+		interval = _ask_Int(SetupAskCollectIntervalText, 300, 15, 86400)
+		_setup_Courier_Agent()
+		return {
+			"collection_mode": "courier",
+			"courier_enabled": True,
+			"collect_interval_sec": interval,
+			"jitter_enabled": False,
+			"beacon": 30,
+			"jitter": 0,
+			"cover_enabled": False,
+			"cover_urls": [],
+			"path_rotation": False,
+			"mimicry": False,
+			"user_agent": SetupUserAgentDefault,
+			"process_enabled": False,
+			"process_name": "svchost",
+		}
 
 	jitter_enabled = _ask_YesNo(SetupAskJitterText, True)
 	beacon = 30
@@ -402,6 +525,9 @@ def _ask_Stealth() -> dict:
 			process_name = _ask(SetupAskProcessNameAgainText, "svchost") or "svchost"
 
 	return {
+		"collection_mode": "agent",
+		"courier_enabled": False,
+		"collect_interval_sec": 300,
 		"jitter_enabled": jitter_enabled,
 		"beacon": beacon,
 		"jitter": jitter,
@@ -651,6 +777,11 @@ def _save_Profile(
 				"capture_source_meta": True,
 			},
 			"mask": {
+				"collection_mode": stealth.get("collection_mode", "agent"),
+				"courier": {
+					"enabled": bool(stealth.get("courier_enabled")),
+					"collect_interval_sec": int(stealth.get("collect_interval_sec") or 300),
+				},
 				"jitter": {
 					"enabled": stealth["jitter_enabled"],
 					"beacon_interval_sec": stealth["beacon"],
@@ -658,7 +789,8 @@ def _save_Profile(
 				},
 				"cover": {
 					"enabled": stealth["cover_enabled"],
-					"urls": stealth["cover_urls"],
+					"urls": stealth["cover_urls"]
+					or [u.strip() for u in SetupCoverUrlsDefault.split(",") if u.strip()],
 				},
 				"path_rotation": {
 					"enabled": stealth["path_rotation"],
@@ -689,11 +821,27 @@ def _save_Profile(
 	return profile_id, profile_name
 
 
+def _public_Center_For_Card() -> str:
+	"""На карточке - публичный канал downloads/agent, не CLI :8088."""
+	try:
+		return public_Agent_Center_Url(client.get_BaseUrl())
+	except client.ApiError:
+		return client.get_BaseUrl().rstrip("/")
+
+
 def _print_InstallCard(trap_name: str, profile_name: str) -> None:
 	card = SetupInstallCard.format(
 		trap_name=trap_name,
 		profile_name=profile_name,
-		api_base=client.get_BaseUrl(),
+		api_base=_public_Center_For_Card(),
+	)
+	print(Fore.MAGENTA + card + Style.RESET_ALL)
+
+
+def _print_Courier_InstallCard(courier_name: str) -> None:
+	card = SetupCourierInstallCard.format(
+		courier_name=courier_name,
+		api_base=_public_Center_For_Card(),
 	)
 	print(Fore.MAGENTA + card + Style.RESET_ALL)
 
@@ -710,18 +858,19 @@ def _install_OverSsh(trap_name: str, profile_name: str) -> str | None:
 	port = _ask_Int(SetupAskSshPortText, 22, 1, 65535)
 	password = getpass.getpass(Fore.GREEN + SetupAskSshPasswordText + Style.RESET_ALL)
 	api_base = client.get_BaseUrl()
+	default_public = _public_Center_For_Card()
 	if center_IsLoopback(api_base):
 		print_Attention(SetupSshLocalCenterText)
 		center = (_ask(SetupAskReachableCenterText, "") or "").strip()
 	else:
-		center = (_ask(SetupAskReachableCenterText, api_base) or api_base).strip()
+		center = (_ask(SetupAskReachableCenterText, default_public) or default_public).strip()
 	try:
 		return install_AgentOverSsh(
 			host=host,
 			user=user,
 			password=password,
 			port=port,
-			center_url=center,
+			center_url=check_CenterUrl(center),
 		)
 	except client.ApiError as exc:
 		print_Attention(SetupSshFailedText.format(detail=str(exc)))
@@ -788,28 +937,136 @@ def _wait_AndApprove(
 
 	final_name = _ask("Позывной узла в парке", trap_name) or trap_name
 	print()
-	print_Attention(f"Принимаю узел '{final_name}' и накатываю конфиг приманки...")
-	result = client.confirm_Pairing(
-		device_code=device_code,
-		trap_name=final_name,
-		profile_id=profile_id,
-	)
+	print_Attention(SetupApproveNodeText.format(trap_name=final_name))
+	try:
+		result = client.confirm_Pairing(
+			device_code=device_code,
+			trap_name=final_name,
+			profile_id=profile_id,
+		)
+	except client.ApiError as exc:
+		print(Fore.RED + MsgApiError.format(detail=str(exc)) + Style.RESET_ALL)
+		print_Attention(SetupStep4BadCodeText.format(code=device_code))
+		print_SetupTip(SetupStep4BadCodeTipText)
+		# Повтор: актуальный pending с центра, без stale-кода из deploy.
+		if not _ask_YesNo(SetupAskPairListRetryText, True):
+			return None
+		return _wait_AndApprove(profile_id, final_name, known_code=None)
+
 	trap_id = str(result.get("trap_id") or "")
 	print(
 		Fore.GREEN
 		+ SetupStep4ApprovedText.format(trap_name=final_name, trap_id=trap_id)
 		+ Style.RESET_ALL
 	)
-	print_SetupTip("На хосте агент завершит регистрацию и подтянет конфиг сам.")
+	print_SetupTip(SetupHostWillFinishText)
+	print_SetupTip(SetupStep4TipOwner)
+	if trap_id:
+		_maybe_Assign_Owner(trap_id)
 	return trap_id
 
 
-def _commission_Trap(trap_id: str | None, profile_id: str, trap_name: str) -> None:
+def _print_User_Pick_List(users: list) -> None:
+	print_OpsLine("users", str(len(users)))
+	for item in users:
+		uid = str(item.get("id") or "")
+		name = str(item.get("username") or "?")
+		role = str(item.get("role_name") or "-")
+		print(f"  {Fore.GREEN}{uid}{Style.RESET_ALL}  {name}  role={role}")
+
+
+def _maybe_Assign_Owner(trap_id: str) -> None:
+	"""После confirm владелец = текущий оператор; можно сразу передать другому."""
+	try:
+		trap = client.get_Trap(trap_id)
+	except client.ApiError as exc:
+		print(Fore.RED + MsgApiError.format(detail=str(exc)) + Style.RESET_ALL)
+		return
+
+	print_OpsLine("Владелец", str(trap.get("owner_user_id") or "-"))
+	if not _ask_YesNo(SetupAskOwnerReassignText, False):
+		print_SetupTip(SetupOwnerSetSkipText)
+		return
+
+	try:
+		users = client.list_Users()
+	except client.ApiError:
+		print_SetupTip(SetupOwnerUsersListDeniedText)
+		users = None
+	else:
+		if not users:
+			print(Fore.YELLOW + SetupOwnerUsersEmptyText + Style.RESET_ALL)
+			return
+		_print_User_Pick_List(users)
+
+	user_id = (_ask(SetupAskOwnerUserIdText) or "").strip()
+	if not user_id:
+		print_SetupTip(SetupOwnerSetSkipText)
+		return
+
+	try:
+		updated = client.set_Trap_Owner(trap_id, user_id)
+		print(Fore.GREEN + SetupOwnerSetOkText + Style.RESET_ALL)
+		print_OpsLine("Владелец", str(updated.get("owner_user_id") or "-"))
+	except client.ApiError as exc:
+		print(Fore.RED + MsgApiError.format(detail=str(exc)) + Style.RESET_ALL)
+
+
+def _maybe_Set_Courier_Ssh(trap_id: str, default_host: str = "") -> None:
+	if not _ask_YesNo(SetupAskTrapCourierSshText, True):
+		return
+	host = _ask(SetupAskSshHostText, default_host) or default_host
+	if not host:
+		print_Attention("Без host визиты курьера не запланируются.")
+		return
+	user = _ask(SetupAskSshUserText, "root") or "root"
+	password = getpass.getpass(Fore.GREEN + SetupAskSshPasswordText + Style.RESET_ALL)
+	port = _ask_Int(SetupAskSshPortText, 22, 1, 65535)
+	data_dir = _ask("Каталог данных агента на ловушке", "/opt/honeyforge") or "/opt/honeyforge"
+	try:
+		client.set_Trap_Courier_Ssh(
+			trap_id,
+			host=host,
+			user=user,
+			password=password,
+			port=port,
+			remote_data_dir=data_dir,
+		)
+		print(Fore.GREEN + TrapCourierSshSavedText + Style.RESET_ALL)
+	except client.ApiError as exc:
+		print(Fore.RED + MsgApiError.format(detail=str(exc)) + Style.RESET_ALL)
+
+
+def _commission_Trap(
+	trap_id: str | None,
+	profile_id: str,
+	trap_name: str,
+	*,
+	courier_mode: bool = False,
+) -> None:
 	_step_Header(SetupStep5Header)
 	print_SetupTip(SetupStep5TipOnline)
 
 	if not trap_id:
 		print(Fore.YELLOW + "Узел не принят - ввод в строй пропущен." + Style.RESET_ALL)
+		return
+
+	if courier_mode:
+		print_SetupTip(SetupDeliveryCourierTip)
+		# В courier online по heartbeat не ждём - достаточно bind профиля.
+		try:
+			found = client.get_Trap(trap_id)
+			if not found.get("profile_id"):
+				client.bind_TrapProfile(trap_id, profile_id)
+				found = client.get_Trap(trap_id)
+			print_OpsLine("Узел", found.get("name") or trap_name)
+			print_OpsLine("Владелец", str(found.get("owner_user_id") or "-"))
+			print_OpsLine("courier_ssh", "да" if found.get("has_courier_ssh") else "нет")
+			print(Fore.GREEN + SetupCourierCommissionOkText + Style.RESET_ALL)
+		except client.ApiError as exc:
+			print(Fore.RED + MsgApiError.format(detail=str(exc)) + Style.RESET_ALL)
+		print()
+		print_SetupTip(SetupStep5TipProbe)
 		return
 
 	for attempt in range(1, 6):
@@ -826,6 +1083,7 @@ def _commission_Trap(trap_id: str | None, profile_id: str, trap_name: str) -> No
 		status = found.get("status", "?")
 		print()
 		print_OpsLine("Узел", found.get("name") or trap_name)
+		print_OpsLine("Владелец", str(found.get("owner_user_id") or "-"))
 		print_OpsLine("Статус", _status_Color(str(status)))
 		print_OpsLine("Last seen", str(found.get("last_seen_at") or "ещё не было"))
 
@@ -868,11 +1126,16 @@ def cmd_Setup(_args) -> None:
 
 		faces = _configure_All()
 		stealth = _ask_Stealth()
+		courier_mode = stealth.get("collection_mode") == "courier"
 		profile_id, profile_name = _save_Profile(trap_name, faces, stealth)
 
 		known_code = _install_OverSsh(trap_name, profile_name)
 		trap_id = _wait_AndApprove(profile_id, trap_name, known_code)
-		_commission_Trap(trap_id, profile_id, trap_name)
+		if trap_id and courier_mode:
+			_maybe_Set_Courier_Ssh(trap_id)
+		_commission_Trap(
+			trap_id, profile_id, trap_name, courier_mode=courier_mode
+		)
 
 		print()
 		print(Fore.GREEN + Style.BRIGHT + SetupDoneText.format(trap_name=trap_name) + Style.RESET_ALL)
@@ -880,8 +1143,13 @@ def cmd_Setup(_args) -> None:
 		print_OpsLine("Профиль", profile_name)
 		if trap_id:
 			print_OpsLine("Trap ID", trap_id)
+			try:
+				trap = client.get_Trap(trap_id)
+				print_OpsLine("Владелец", str(trap.get("owner_user_id") or "-"))
+			except client.ApiError:
+				pass
 		print()
-		print_SetupTip("Смена: traps-list / events-tail / pair-list")
+		print_SetupTip(SetupDoneTipText)
 	except KeyboardInterrupt:
 		print()
 		print(Fore.YELLOW + SetupAbortText + Style.RESET_ALL)

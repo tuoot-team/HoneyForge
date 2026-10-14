@@ -44,10 +44,14 @@ class Trap(Base):
 	profile_id: Mapped[uuid.UUID | None] = mapped_column(
 		Uuid, ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True
 	)
+	owner_user_id: Mapped[uuid.UUID | None] = mapped_column(
+		Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+	)
 	status: Mapped[str] = mapped_column(Text, nullable=False, default="pending")
 	agent_token_hash: Mapped[str | None] = mapped_column(Text, nullable=True)
 	last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 	meta: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+	courier_ssh: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
 	created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 	updated_at: Mapped[datetime] = mapped_column(
 		DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -134,4 +138,54 @@ class User(Base):
 	role_id: Mapped[uuid.UUID] = mapped_column(
 		Uuid, ForeignKey("roles.id", ondelete="RESTRICT"), nullable=False
 	)
+	created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Courier(Base):
+	__tablename__ = "couriers"
+
+	id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+	name: Mapped[str] = mapped_column(Text, nullable=False)
+	status: Mapped[str] = mapped_column(Text, nullable=False, default="pending")
+	agent_token_hash: Mapped[str | None] = mapped_column(Text, nullable=True)
+	owner_user_id: Mapped[uuid.UUID | None] = mapped_column(
+		Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+	)
+	last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+	meta: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+	created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+	updated_at: Mapped[datetime] = mapped_column(
+		DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+	)
+
+
+class CourierPairingSession(Base):
+	__tablename__ = "courier_pairing_sessions"
+
+	id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+	device_code: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+	courier_id: Mapped[uuid.UUID | None] = mapped_column(
+		Uuid, ForeignKey("couriers.id", ondelete="CASCADE"), nullable=True
+	)
+	status: Mapped[str] = mapped_column(Text, nullable=False, default="pending")
+	pending_agent_token: Mapped[str | None] = mapped_column(Text, nullable=True)
+	expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+	created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+	completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class CourierVisit(Base):
+	__tablename__ = "courier_visits"
+
+	id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+	courier_id: Mapped[uuid.UUID | None] = mapped_column(
+		Uuid, ForeignKey("couriers.id", ondelete="SET NULL"), nullable=True
+	)
+	trap_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("traps.id", ondelete="CASCADE"))
+	status: Mapped[str] = mapped_column(Text, nullable=False, default="pending")
+	scheduled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+	claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+	finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+	error: Mapped[str | None] = mapped_column(Text, nullable=True)
+	payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
 	created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

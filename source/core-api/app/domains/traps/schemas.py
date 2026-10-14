@@ -16,9 +16,12 @@ class TrapOut(BaseModel):
 	id: UUID
 	name: str
 	profile_id: UUID | None
+	owner_user_id: UUID | None = None
 	status: TrapStatus
 	last_seen_at: datetime | None
 	meta: dict[str, Any] = Field(default_factory=dict)
+	has_courier_ssh: bool = False
+	courier_ssh_host: str | None = None
 	created_at: datetime
 	updated_at: datetime
 
@@ -27,3 +30,7 @@ class TrapOut(BaseModel):
 
 class TrapBindProfile(BaseModel):
 	profile_id: UUID
+
+
+class TrapSetOwner(BaseModel):
+	user_id: UUID

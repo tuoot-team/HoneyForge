@@ -8,6 +8,7 @@ from texts import (
 	PairListEmptyText,
 	PairListHeaderText,
 	TrapBoundText,
+	TrapOwnerSetText,
 )
 
 
@@ -56,6 +57,15 @@ def cmd_TrapBind(args) -> None:
 	try:
 		data = client.bind_TrapProfile(args.trap_id, args.profile_id)
 		print(Fore.GREEN + TrapBoundText + Style.RESET_ALL)
+		display.print_Trap(data)
+	except client.ApiError as exc:
+		print(Fore.RED + MsgApiError.format(detail=str(exc)) + Style.RESET_ALL)
+
+
+def cmd_TrapSetOwner(args) -> None:
+	try:
+		data = client.set_Trap_Owner(args.trap_id, args.user_id)
+		print(Fore.GREEN + TrapOwnerSetText + Style.RESET_ALL)
 		display.print_Trap(data)
 	except client.ApiError as exc:
 		print(Fore.RED + MsgApiError.format(detail=str(exc)) + Style.RESET_ALL)

@@ -1,3 +1,5 @@
+import getpass
+
 from colorama import Fore, Style, init as init_Colorama
 from dotenv import load_dotenv
 
@@ -5,7 +7,9 @@ from commands.auth import auth_Login
 from parser import create_parser, execute_args
 from texts import (
 	CoreApiErrorText,
+	LoginPasswordPrompt,
 	LoginSuccessText,
+	LoginUsernamePrompt,
 	PasswordErrorText,
 	WelcomeText,
 	clear_Screen,
@@ -22,8 +26,8 @@ def run_Login() -> None:
 	is_logged = False
 	clear_Screen()
 	while not is_logged:
-		enter_Username = input(Fore.GREEN + "Логин: " + Style.RESET_ALL).strip()
-		enter_Password = input(Fore.GREEN + "Пароль: " + Style.RESET_ALL)
+		enter_Username = input(Fore.GREEN + LoginUsernamePrompt + Style.RESET_ALL).strip()
+		enter_Password = getpass.getpass(Fore.GREEN + LoginPasswordPrompt + Style.RESET_ALL)
 		if enter_Username and auth_Login(enter_Username, enter_Password) not in [None, ""]:
 			is_logged = True
 		else:

@@ -311,6 +311,76 @@ def bind_TrapProfile(trap_id: str, profile_id: str) -> dict:
 	)
 
 
+def set_Trap_Owner(trap_id: str, user_id: str) -> dict:
+	return request_Api(
+		"PATCH",
+		f"/api/v1/traps/{trap_id}/owner",
+		json_body={"user_id": user_id},
+	)
+
+
+def set_Trap_Courier_Ssh(
+	trap_id: str,
+	*,
+	host: str,
+	user: str = "root",
+	password: str | None = None,
+	private_key: str | None = None,
+	port: int = 22,
+	remote_data_dir: str = "/opt/honeyforge",
+) -> dict:
+	body: dict[str, Any] = {
+		"host": host,
+		"user": user,
+		"port": port,
+		"remote_data_dir": remote_data_dir,
+	}
+	if password:
+		body["password"] = password
+	if private_key:
+		body["private_key"] = private_key
+	return request_Api("PATCH", f"/api/v1/traps/{trap_id}/courier-ssh", json_body=body)
+
+
+def list_Couriers() -> list:
+	return request_Api("GET", "/api/v1/couriers/") or []
+
+
+def get_Courier(courier_id: str) -> dict:
+	return request_Api("GET", f"/api/v1/couriers/{courier_id}")
+
+
+def list_Courier_Pairings(status: str = "pending") -> dict:
+	return request_Api("GET", "/api/v1/courier-pairing/", params={"status": status})
+
+
+def confirm_Courier_Pairing(device_code: str, name: str = "courier") -> dict:
+	return request_Api(
+		"POST",
+		"/api/v1/courier-pairing/confirm",
+		json_body={"device_code": device_code, "name": name},
+	)
+
+
+def deploy_Courier(
+	*,
+	host: str,
+	user: str = "root",
+	password: str,
+	port: int = 22,
+	center_url: str | None = None,
+) -> dict:
+	body: dict[str, Any] = {
+		"host": host,
+		"user": user,
+		"password": password,
+		"port": port,
+	}
+	if center_url:
+		body["center_url"] = center_url
+	return request_Api("POST", "/api/v1/deploy/courier", json_body=body)
+
+
 def list_Events(
 	*,
 	trap_id: str | None = None,

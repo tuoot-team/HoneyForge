@@ -58,7 +58,13 @@ def _to_SessionOut(row: models.PairingSession) -> PairingSessionOut:
 	)
 
 
-def list_Pairings(db: Session, status_filter: str | None = "pending") -> PairingListOut:
+def list_Pairings(
+	db: Session,
+	*,
+	status_filter: str | None = "pending",
+	visible_trap_ids: set[UUID] | None = None,
+) -> PairingListOut:
+	"""visible_trap_ids=None - все; иначе pending без trap + сессии своих ловушек."""
 	now = datetime.now(timezone.utc)
 	_expire_Stale_Pairings(db, now)
 
@@ -66,7 +72,15 @@ def list_Pairings(db: Session, status_filter: str | None = "pending") -> Pairing
 	if status_filter and status_filter != "all":
 		query = query.filter(models.PairingSession.status == status_filter)
 	rows = query.order_by(models.PairingSession.created_at.desc()).all()
-	items = [_to_SessionOut(row) for row in rows]
+	items: list[PairingSessionOut] = []
+	for row in rows:
+		if visible_trap_ids is not None:
+			if row.trap_id is None:
+				# Ещё не подтверждённые коды видят все с traps.read (чтобы confirm).
+				pass
+			elif row.trap_id not in visible_trap_ids:
+				continue
+		items.append(_to_SessionOut(row))
 	return PairingListOut(total=len(items), items=items)
 
 
@@ -92,7 +106,9 @@ def start_Pairing(db: Session) -> PairingStartOut:
 	return PairingStartOut(pairing_id=row.id, device_code=row.device_code, expires_at=row.expires_at)
 
 
-def confirm_Pairing(db: Session, body: PairingConfirmIn) -> dict:
+def confirm_Pairing(
+	db: Session, body: PairingConfirmIn, *, owner_user_id: UUID | None = None
+) -> dict:
 	settings = get_Settings()
 	now = datetime.now(timezone.utc)
 	row = (
@@ -130,6 +146,7 @@ def confirm_Pairing(db: Session, body: PairingConfirmIn) -> dict:
 	trap = models.Trap(
 		name=body.trap_name,
 		profile_id=body.profile_id,
+		owner_user_id=owner_user_id,
 		status="pending",
 		agent_token_hash=hash_Secret(agent_token),
 	)

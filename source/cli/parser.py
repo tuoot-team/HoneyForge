@@ -30,10 +30,19 @@ from commands.profiles import (
 )
 from commands.deploy import cmd_Deploy
 from commands.setup import cmd_Guide, cmd_Setup
+from commands.couriers import (
+	cmd_CourierConfirm,
+	cmd_CourierDeploy,
+	cmd_CourierList,
+	cmd_CourierPairList,
+	cmd_CourierShow,
+	cmd_TrapSetCourierSsh,
+)
 from commands.traps import (
 	cmd_PairConfirm,
 	cmd_PairList,
 	cmd_TrapBind,
+	cmd_TrapSetOwner,
 	cmd_TrapShow,
 	cmd_TrapsList,
 )
@@ -195,6 +204,45 @@ def create_parser() -> argparse.ArgumentParser:
 	p_tb.add_argument("trap_id")
 	p_tb.add_argument("profile_id")
 	p_tb.set_defaults(func=cmd_TrapBind)
+
+	p_to = sub.add_parser("trap-set-owner", help="назначить владельца ловушки")
+	p_to.add_argument("trap_id")
+	p_to.add_argument("--user-id", dest="user_id", required=True, help="UUID пользователя")
+	p_to.set_defaults(func=cmd_TrapSetOwner)
+
+	p_tcs = sub.add_parser("trap-set-courier-ssh", help="SSH ловушки для визитов курьера")
+	p_tcs.add_argument("trap_id")
+	p_tcs.add_argument("--host", required=True)
+	p_tcs.add_argument("--user", default="root")
+	p_tcs.add_argument("--port", type=int, default=22)
+	p_tcs.add_argument("--password", default="")
+	p_tcs.add_argument("--private-key", dest="private_key", default=None)
+	p_tcs.add_argument("--data-dir", dest="data_dir", default="/opt/honeyforge")
+	p_tcs.set_defaults(func=cmd_TrapSetCourierSsh)
+
+	p_cl = sub.add_parser("courier-list", help="список курьеров")
+	p_cl.set_defaults(func=cmd_CourierList)
+
+	p_cs = sub.add_parser("courier-show", help="карточка курьера")
+	p_cs.add_argument("courier_id")
+	p_cs.set_defaults(func=cmd_CourierShow)
+
+	p_cpl = sub.add_parser("courier-pair-list", help="входящие pairing курьеров")
+	p_cpl.add_argument("--status", default="pending")
+	p_cpl.set_defaults(func=cmd_CourierPairList)
+
+	p_cc = sub.add_parser("courier-confirm", help="подтвердить pairing курьера")
+	p_cc.add_argument("device_code")
+	p_cc.add_argument("--name", default="courier")
+	p_cc.set_defaults(func=cmd_CourierConfirm)
+
+	p_cd = sub.add_parser("courier-deploy", help="поставить курьера на третий хост по SSH")
+	p_cd.add_argument("--host", required=True)
+	p_cd.add_argument("--user", default="root")
+	p_cd.add_argument("--port", type=int, default=22)
+	p_cd.add_argument("--api-base", default="")
+	p_cd.add_argument("--password", default="")
+	p_cd.set_defaults(func=cmd_CourierDeploy)
 
 	p_el = sub.add_parser("events-list", help="список событий")
 	p_el.add_argument("--trap-id", dest="trap_id", default=None)

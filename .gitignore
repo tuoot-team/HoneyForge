@@ -41,5 +41,6 @@ source/honeypots/events_buffer.json
 source/honeypots/vendor/
 source/core-api/downloads/agent
 source/core-api/downloads/agent.exe
+source/core-api/downloads/courier
 source/honeypots/.fs_packs/
 source/core-api/fs-packs/

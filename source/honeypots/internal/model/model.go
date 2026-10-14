@@ -235,7 +235,18 @@ func (m ProcessMaskMethod) IsEnabled() bool {
 	return m.Enabled == nil || *m.Enabled
 }
 
+type CourierMethod struct {
+	Enabled            *bool `json:"enabled"`
+	CollectIntervalSec int   `json:"collect_interval_sec"`
+}
+
+func (m CourierMethod) IsEnabled() bool {
+	return m.Enabled != nil && *m.Enabled
+}
+
 type MaskBlock struct {
+	CollectionMode     string             `json:"collection_mode"`
+	Courier            CourierMethod      `json:"courier"`
 	Jitter             JitterMethod       `json:"jitter"`
 	Cover              CoverMethod        `json:"cover"`
 	PathRotation       PathRotationMethod `json:"path_rotation"`
@@ -243,6 +254,13 @@ type MaskBlock struct {
 	ProcessMask        ProcessMaskMethod  `json:"process_mask"`
 	DecoyContentSeed   string             `json:"decoy_content_seed"`
 	ServicePersonality string             `json:"service_personality"`
+}
+
+func (m MaskBlock) IsCourierMode() bool {
+	if m.Courier.IsEnabled() {
+		return true
+	}
+	return m.CollectionMode == "courier"
 }
 
 func (m *MaskBlock) UnmarshalJSON(data []byte) error {
@@ -258,7 +276,8 @@ func (m *MaskBlock) UnmarshalJSON(data []byte) error {
 	_, hasPaths := raw["path_rotation"]
 	_, hasMimicry := raw["mimicry"]
 	_, hasProcess := raw["process_mask"]
-	nested := hasJitter || hasCover || hasPaths || hasMimicry || hasProcess
+	_, hasCourier := raw["courier"]
+	nested := hasJitter || hasCover || hasPaths || hasMimicry || hasProcess || hasCourier
 	if !nested && has_FlatMask(raw) {
 		return m.unmarshal_Flat(raw)
 	}

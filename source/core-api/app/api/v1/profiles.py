@@ -36,7 +36,14 @@ def get_ProfileSchema() -> ProfileSchemaDoc:
 		block_keys=["services", "credentials", "logging", "mask"],
 		service_types=["ssh", "http", "tcp_banner", "postgres", "redis", "mysql"],
 		auth_modes=[mode.value for mode in AuthMode],
-		mask_methods=["jitter", "cover", "path_rotation", "mimicry", "process_mask"],
+		mask_methods=[
+			"courier",
+			"jitter",
+			"cover",
+			"path_rotation",
+			"mimicry",
+			"process_mask",
+		],
 		example=example,
 	)
 

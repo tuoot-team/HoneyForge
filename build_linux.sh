@@ -9,22 +9,8 @@ SOURCE_ROOT="${ROOT}/source"
 echo "[build] root=${ROOT}"
 mkdir -p "${BUILD_ROOT}"
 
-build_Honeypots() {
-	local out_dir="${BUILD_ROOT}/honeypots"
-	local src_dir="${SOURCE_ROOT}/honeypots"
-	mkdir -p "${out_dir}"
-	echo "[build] honeypots -> ${out_dir}"
-	(
-		cd "${src_dir}"
-		# -mod=vendor: без сети; CGO=0: статический бинарь (не требует новый glibc на цели)
-		CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -mod=vendor -trimpath -ldflags="-s -w" -o "${out_dir}/agent" ./cmd/agent
-	)
-	publish_Agent "${out_dir}/agent" "${SOURCE_ROOT}/core-api/downloads/agent"
-	echo "[build] honeypots ok: agent"
-}
-
-# Бинарь, который центр отдаёт хосту ловушки.
-publish_Agent() {
+# Бинарь в downloads/ центра (статический, без привязки к glibc на цели).
+publish_Bin() {
 	local src="$1"
 	local dest="$2"
 	mkdir -p "$(dirname "${dest}")"
@@ -33,10 +19,26 @@ publish_Agent() {
 	echo "[build] downloads -> ${dest}"
 }
 
+build_Honeypots() {
+	local out_dir="${BUILD_ROOT}/honeypots"
+	local src_dir="${SOURCE_ROOT}/honeypots"
+	mkdir -p "${out_dir}"
+	echo "[build] honeypots -> ${out_dir}"
+	(
+		cd "${src_dir}"
+		# -mod=vendor: без сети; CGO=0: статический бинарь (не требует новый glibc на цели)
+		CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -mod=vendor -trimpath -ldflags="-s -w" \
+			-o "${out_dir}/agent" ./cmd/agent
+		CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -mod=vendor -trimpath -ldflags="-s -w" \
+			-o "${out_dir}/courier" ./cmd/courier
+	)
+	publish_Bin "${out_dir}/agent" "${SOURCE_ROOT}/core-api/downloads/agent"
+	publish_Bin "${out_dir}/courier" "${SOURCE_ROOT}/core-api/downloads/courier"
+	echo "[build] honeypots ok: agent + courier"
+}
+
 # Кэш, локальная БД и .env в архив центра не входят.
 pack_CoreApi() {
-	local agent_src="$1"
-	local agent_name="$2"
 	local stage="${BUILD_ROOT}/core-api"
 	local archive="${BUILD_ROOT}/core-api.tar.gz"
 	echo "[build] core-api -> ${stage}"
@@ -51,10 +53,12 @@ pack_CoreApi() {
 		--exclude='venv' \
 		--exclude='downloads/agent' \
 		--exclude='downloads/agent.exe' \
+		--exclude='downloads/courier' \
 		-cf - . | tar -C "${stage}" -xf -
 	mkdir -p "${stage}/downloads"
-	cp "${agent_src}" "${stage}/downloads/${agent_name}"
-	chmod +x "${stage}/downloads/${agent_name}"
+	cp "${BUILD_ROOT}/honeypots/agent" "${stage}/downloads/agent"
+	cp "${BUILD_ROOT}/honeypots/courier" "${stage}/downloads/courier"
+	chmod +x "${stage}/downloads/agent" "${stage}/downloads/courier"
 	find "${stage}" -type d -name '__pycache__' -prune -exec rm -rf {} +
 	find "${stage}" -type f \( -name '*.pyc' -o -name '.env' -o -name 'honeyforge_local.db' \) -delete
 	echo "[build] archive -> ${archive}"
@@ -64,7 +68,8 @@ pack_CoreApi() {
 }
 
 build_Honeypots
-pack_CoreApi "${BUILD_ROOT}/honeypots/agent" "agent"
+pack_CoreApi
 
 echo "[build] готово: ${BUILD_ROOT}"
 ls -la "${BUILD_ROOT}/honeypots" "${BUILD_ROOT}/core-api.tar.gz"
+file "${BUILD_ROOT}/honeypots/agent" "${BUILD_ROOT}/honeypots/courier"

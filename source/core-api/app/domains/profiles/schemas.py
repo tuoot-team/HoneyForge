@@ -239,9 +239,23 @@ class ProcessMaskMethod(BaseModel):
 	name: str = "svchost"
 
 
+class CollectionMode(str, Enum):
+	agent = "agent"
+	courier = "courier"
+
+
+class CourierMethod(BaseModel):
+	"""Доставка логов через третьего агента-курьера (без исходящего batch с ловушки)."""
+
+	enabled: bool = False
+	collect_interval_sec: int = Field(default=300, ge=15, le=86400)
+
+
 class MaskBlock(BaseModel):
 	"""Способы сокрытия канала агент → центр. Каждый способ включается отдельно."""
 
+	collection_mode: CollectionMode = CollectionMode.agent
+	courier: CourierMethod = Field(default_factory=CourierMethod)
 	jitter: JitterMethod = Field(default_factory=JitterMethod)
 	cover: CoverMethod = Field(default_factory=CoverMethod)
 	path_rotation: PathRotationMethod = Field(default_factory=PathRotationMethod)
@@ -277,6 +291,8 @@ class MaskBlock(BaseModel):
 		paths = value.get("collector_path_set", ["/v1/metrics", "/cdn/edge-check"])
 		process_name = value.get("process_name", "svchost") or "svchost"
 		return {
+			"collection_mode": value.get("collection_mode", "agent"),
+			"courier": value.get("courier") or {"enabled": False, "collect_interval_sec": 300},
 			"jitter": {
 				"enabled": True,
 				"beacon_interval_sec": value.get("beacon_interval_sec", 30),
@@ -305,6 +321,38 @@ class MaskBlock(BaseModel):
 			"decoy_content_seed": value.get("decoy_content_seed", ""),
 			"service_personality": value.get("service_personality", ""),
 		}
+
+	@model_validator(mode="after")
+	def sync_Collection_Mode(self) -> "MaskBlock":
+		# Курьер и классические mask взаимоисключающи.
+		if self.courier.enabled or self.collection_mode == CollectionMode.courier:
+			self.collection_mode = CollectionMode.courier
+			self.courier = CourierMethod(
+				enabled=True,
+				collect_interval_sec=self.courier.collect_interval_sec,
+			)
+			self.jitter = self.jitter.model_copy(update={"enabled": False})
+			self.cover = self.cover.model_copy(update={"enabled": False})
+			self.path_rotation = self.path_rotation.model_copy(update={"enabled": False})
+			self.mimicry = self.mimicry.model_copy(update={"enabled": False})
+			self.process_mask = self.process_mask.model_copy(update={"enabled": False})
+			return self
+		classic_on = any(
+			(
+				self.jitter.enabled,
+				self.cover.enabled,
+				self.path_rotation.enabled,
+				self.mimicry.enabled,
+				self.process_mask.enabled,
+			)
+		)
+		if classic_on:
+			self.collection_mode = CollectionMode.agent
+			self.courier = CourierMethod(
+				enabled=False,
+				collect_interval_sec=self.courier.collect_interval_sec,
+			)
+		return self
 
 
 class ProfileBlocks(BaseModel):

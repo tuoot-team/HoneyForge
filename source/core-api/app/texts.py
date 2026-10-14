@@ -38,17 +38,33 @@ MSG_PAIRING_BAD_CODE = "неверный device_code"
 MSG_PAIRING_NOT_READY = "pairing ещё не подтверждён оператором"
 MSG_AGENT_UNAUTHORIZED = "агент не авторизован"
 MSG_AGENT_NO_PROFILE = "к ловушке не привязан профиль"
+MSG_COURIER_UNAUTHORIZED = "курьер не авторизован"
+MSG_COURIER_NOT_FOUND = "курьер не найден"
+MSG_COURIER_PAIRING_BAD_CODE = "неверный device_code курьера"
+MSG_COURIER_PAIRING_EXPIRED = "код pairing курьера истёк"
+MSG_COURIER_PAIRING_NOT_FOUND = "сессия pairing курьера не найдена"
+MSG_COURIER_PAIRING_NOT_READY = "pairing курьера ещё не подтверждён"
+MSG_COURIER_VISIT_NOT_FOUND = "задание визита не найдено"
+MSG_COURIER_VISIT_BAD_STATE = "задание визита в неверном статусе"
+MSG_COURIER_SSH_INCOMPLETE = "для курьера нужны SSH host, user и password или private_key"
+MSG_TRAP_NO_COURIER_SSH = "у ловушки не задан courier_ssh"
 
 MSG_DEPLOY_NEED_HOST = "нужен IP хоста"
 MSG_DEPLOY_NEED_PASSWORD = "нужен пароль SSH"
 MSG_DEPLOY_BAD_CENTER = (
-	"адрес центра должен быть http:// или https:// без кавычек и пробелов"
+	"адрес центра: http(s)://host или host[:port] без кавычек и пробелов "
+	"(публичный канал агента/курьера, не операторский :8088)"
 )
 MSG_DEPLOY_AUTH = "SSH не пустил: проверь логин, пароль и порт"
 MSG_DEPLOY_CONNECT = "нет соединения с {host}:{port}: {detail}"
-MSG_DEPLOY_RUN = "хост ответил, но агент не встал: {detail}"
+MSG_DEPLOY_RUN = "хост ответил, но установка не завершилась: {detail}"
+MSG_DEPLOY_TIMEOUT = (
+	"таймаут SSH ({detail}). "
+	"С ядра до хоста канал рвётся; с хоста curl на {center}/downloads/ может работать. "
+	"Поставь вручную: install-courier.sh / courier-confirm."
+)
 MSG_DEPLOY_CODE_TIMEOUT = (
-	"агент запущен, код pairing в логе не появился; смотри pair-list"
+	"бинарь запущен, код pairing в логе не появился; смотри pair-list / courier-pair-list"
 )
 
 MSG_FS_PACK_NOT_FOUND = "пакет файловой системы не найден"

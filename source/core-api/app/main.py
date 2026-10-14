@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -8,16 +9,40 @@ from app.api.v1.health import router as health_router
 from app.api.v1.router import api_v1_router, collector_router
 from app.config import get_Settings
 from app.db.base import Base
+from app.db.schema_patches import apply_Schema_Patches
 from app.db.session import get_Engine, get_SessionFactory
+from app.domains.couriers import service as courier_service
 from app.domains.rbac.bootstrap import ensure_Rbac_Bootstrap
 from app.texts import MSG_DEBUG_BOOT
 
 from app.db import models  # noqa: F401 - регистрация таблиц
 
+_COURIER_SCHEDULER_SEC = 30
+
+
+async def _courier_Scheduler_Loop() -> None:
+	"""Фон: создаёт visit-задания для ловушек в режиме courier."""
+	while True:
+		try:
+			db = get_SessionFactory()()
+			try:
+				created = courier_service.schedule_Courier_Visits(db)
+				settings = get_Settings()
+				if settings.DEBUG and created:
+					print(f"[DEBUG] courier visits scheduled: {created}")
+			finally:
+				db.close()
+		except Exception as exc:
+			settings = get_Settings()
+			if settings.DEBUG:
+				print(f"[DEBUG] courier scheduler: {exc}")
+		await asyncio.sleep(_COURIER_SCHEDULER_SEC)
+
 
 def ensure_Schema() -> None:
-	"""Создаёт отсутствующие таблицы (SQLite и уже живой Postgres без миграций)."""
+	"""Создаёт отсутствующие таблицы и накатывает ALTER для живых volume."""
 	Base.metadata.create_all(bind=get_Engine())
+	apply_Schema_Patches()
 
 
 def bootstrap_Rbac() -> None:
@@ -40,7 +65,15 @@ async def lifespan(_app: FastAPI):
 	if settings.DEBUG:
 		print("[DEBUG] schema create_all + rbac bootstrap done")
 
-	yield
+	scheduler_task = asyncio.create_task(_courier_Scheduler_Loop())
+	try:
+		yield
+	finally:
+		scheduler_task.cancel()
+		try:
+			await scheduler_task
+		except asyncio.CancelledError:
+			pass
 
 
 def create_App() -> FastAPI:

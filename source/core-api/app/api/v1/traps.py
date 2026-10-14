@@ -6,7 +6,9 @@ from app.deps import CurrentUser, DbSession, require_Permission
 from app.domains.rbac import service as rbac_service
 from app.domains.rbac.permissions import PERM_TRAPS_READ, PERM_TRAPS_WRITE
 from app.domains.traps import service as trap_service
-from app.domains.traps.schemas import TrapBindProfile, TrapOut
+from app.domains.couriers import service as courier_service
+from app.domains.couriers.schemas import TrapCourierSshIn
+from app.domains.traps.schemas import TrapBindProfile, TrapOut, TrapSetOwner
 
 router = APIRouter(prefix="/traps", tags=["traps"])
 
@@ -14,18 +16,18 @@ router = APIRouter(prefix="/traps", tags=["traps"])
 @router.get("/", response_model=list[TrapOut])
 def list_Traps(
 	db: DbSession,
-	_operator: CurrentUser = Depends(require_Permission(PERM_TRAPS_READ)),
+	operator: CurrentUser = Depends(require_Permission(PERM_TRAPS_READ)),
 ) -> list[TrapOut]:
-	return trap_service.list_Traps(db)
+	return trap_service.list_Traps(db, operator)
 
 
 @router.get("/{trap_id}", response_model=TrapOut)
 def get_Trap(
 	db: DbSession,
 	trap_id: UUID,
-	_operator: CurrentUser = Depends(require_Permission(PERM_TRAPS_READ)),
+	operator: CurrentUser = Depends(require_Permission(PERM_TRAPS_READ)),
 ) -> TrapOut:
-	return trap_service.get_Trap(db, trap_id)
+	return trap_service.get_Trap(db, operator, trap_id)
 
 
 @router.post("/{trap_id}/bind-profile", response_model=TrapOut)
@@ -35,7 +37,7 @@ def bind_TrapProfile(
 	body: TrapBindProfile,
 	operator: CurrentUser = Depends(require_Permission(PERM_TRAPS_WRITE)),
 ) -> TrapOut:
-	out = trap_service.bind_TrapProfile(db, trap_id, body)
+	out = trap_service.bind_TrapProfile(db, operator, trap_id, body)
 	rbac_service.write_Audit(
 		db,
 		actor=operator.username,
@@ -43,5 +45,43 @@ def bind_TrapProfile(
 		resource_type="trap",
 		resource_id=str(trap_id),
 		payload={"profile_id": str(body.profile_id)},
+	)
+	return out
+
+
+@router.patch("/{trap_id}/owner", response_model=TrapOut)
+def set_Trap_Owner(
+	db: DbSession,
+	trap_id: UUID,
+	body: TrapSetOwner,
+	operator: CurrentUser = Depends(require_Permission(PERM_TRAPS_WRITE)),
+) -> TrapOut:
+	out = trap_service.set_Trap_Owner(db, operator, trap_id, body)
+	rbac_service.write_Audit(
+		db,
+		actor=operator.username,
+		action="trap.set_owner",
+		resource_type="trap",
+		resource_id=str(trap_id),
+		payload={"user_id": str(body.user_id)},
+	)
+	return out
+
+
+@router.patch("/{trap_id}/courier-ssh")
+def set_Trap_Courier_Ssh(
+	db: DbSession,
+	trap_id: UUID,
+	body: TrapCourierSshIn,
+	operator: CurrentUser = Depends(require_Permission(PERM_TRAPS_WRITE)),
+) -> dict:
+	out = courier_service.set_Trap_Courier_Ssh(db, operator, trap_id, body)
+	rbac_service.write_Audit(
+		db,
+		actor=operator.username,
+		action="trap.set_courier_ssh",
+		resource_type="trap",
+		resource_id=str(trap_id),
+		payload={"host": body.host, "user": body.user, "port": body.port},
 	)
 	return out

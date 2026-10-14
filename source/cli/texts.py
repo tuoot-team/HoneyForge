@@ -67,6 +67,9 @@ CoreApiErrorText = "Не удалось подключиться к CoreAPI.\n" 
 
 PasswordErrorText = "Неверный логин или пароль. Попробуйте ещё раз."
 
+LoginUsernamePrompt = "Логин: "
+LoginPasswordPrompt = "Пароль: "
+
 LoginSuccessText = "Вход выполнен. Добро пожаловать в HoneyForge."
 
 UserListHeaderText = "Пользователи:"
@@ -121,6 +124,7 @@ PairListHeaderText = "Входящие pairing ({total}), status={status}:"
 PairListEmptyText = "Нет pairing со status={status}."
 
 TrapBoundText = "Профиль привязан к ловушке."
+TrapOwnerSetText = "Владелец ловушки обновлён."
 
 EventsTailHintText = "Слушаю SSE /api/v1/events/stream (Ctrl+C - стоп)..."
 
@@ -165,6 +169,7 @@ SetupIntroText = """
 SetupAbortText = "Развёртывание прервано. Узел можно донастроить позже через setup."
 
 SetupDoneText = "Ловушка в парке: {trap_name}"
+SetupDoneTipText = "Смена: traps-list / trap-show / trap-set-owner / events-tail / pair-list"
 
 SetupStep1Header = "Этап 1/5 - Объект"
 
@@ -233,13 +238,61 @@ FsPackDeletedText = "Удалён пакет {token}"
 SetupStep3Header = "Этап 3/5 - Сокрытие трафика канала"
 
 SetupConcealHelp = """
-Способы блока mask, каждый можно выключить:
+Способ доставки логов:
+  1) agent   - ловушка сама шлёт batch (можно включить jitter/cover/...)
+  2) courier - третий сервер забирает буфер по SSH; классический mask выключается
+
+В режиме agent доступны способы mask:
   jitter         - разброс паузы между beacon
   cover          - лишние GET (favicon, robots) между beacon
   path_rotation  - heartbeat по путям /v1/metrics и /cdn/edge-check
   mimicry        - обычный User-Agent браузера
   process_mask   - имя процесса на хосте ловушки
 """
+
+SetupAskDeliveryText = "Доставка логов (1=agent, 2=courier)"
+SetupAskCollectIntervalText = "Как часто курьер забирает логи, сек"
+SetupAskCreateCourierText = "Создать нового курьера сейчас"
+SetupAskCourierNameText = "Имя курьера"
+SetupAskCourierDeployText = "Поставить курьера на третий хост по SSH"
+SetupAskCourierHostText = "IP третьего хоста (курьер, не ловушка)"
+SetupAskCourierCenterText = "Адрес центра, который видит хост курьера"
+SetupAskTrapCourierSshText = "Задать SSH ловушки для визитов курьера"
+SetupCourierCreatedText = "Курьер принят в парк: {name} ({courier_id})"
+SetupCourierDeployTip = (
+	"Курьер ставится на ОТДЕЛЬНУЮ машину (не на ловушку): центр зайдёт по SSH, "
+	"скачает бинарь и подхватит код pairing. "
+	"Адрес центра - публичный канал (обычно https://host без :8088)."
+)
+SetupCourierConnectingText = (
+	"Центр подключается к {user}@{host}:{port} и ставит курьера..."
+)
+SetupCourierDeployFailedText = (
+	"Поставить курьера по SSH не вышло: {detail}. "
+	"Можно позже: courier-deploy / courier-confirm <код>."
+)
+SetupCourierManualLaterText = "Курьера можно принять позже: courier-confirm <код> с хоста."
+SetupDeliveryCourierTip = (
+	"В режиме courier ловушка не шлёт события сама. "
+	"Курьер по расписанию заходит по SSH, забирает буфер и чистит следы визита."
+)
+
+CourierListEmptyText = "Курьеров пока нет."
+CourierListHeaderText = "Курьеры ({total}):"
+CourierPairListHeaderText = "courier pairing ({total}), status={status}:"
+CourierPairListEmptyText = "Нет courier pairing со status={status}."
+CourierConfirmText = "Курьер подтверждён."
+CourierDeployText = "Курьер поставлен. Код: {code}"
+CourierDeployNextText = "courier-confirm {code}"
+DeployPairNextText = "pair-confirm {code}"
+DeployNoDeviceCodeText = "в ответе deploy нет device_code"
+CourierShowHintText = "Дальше: courier-list / pair-list курьера через courier-confirm."
+TrapCourierSshSavedText = "SSH ловушки для курьера сохранён."
+SetupCourierCodeMissingText = "код в логе не найден"
+SetupAskPairListRetryText = "Выбрать код из pair-list сейчас"
+SetupCourierCommissionOkText = "Профиль на месте; логи заберёт курьер."
+SetupApproveNodeText = "Принимаю узел '{trap_name}' и накатываю конфиг приманки..."
+SetupHostWillFinishText = "На хосте агент завершит регистрацию и подтянет конфиг сам."
 
 SetupAskJitterText = "Включить jitter"
 SetupAskBeaconText = "Как часто узел связывается с центром, сек"
@@ -281,6 +334,29 @@ SetupStep4TipCodeTtl = (
 SetupStep4WaitingText = "Ожидаю запрос регистрации от хоста..."
 
 SetupStep4ApprovedText = "Узел принят в парк: {trap_name} ({trap_id})"
+SetupStep4BadCodeText = (
+	"Код {code} не принят центром (устарел или был из старого agent.log)."
+)
+SetupStep4BadCodeTipText = (
+	"На ловушке: grep 'Подтверди код' /opt/honeyforge/agent.log | tail -1 "
+	"затем pair-confirm <код> --name <позывной> --profile-id <UUID профиля>"
+)
+
+SetupStep4TipOwner = (
+	"Владелец ловушки - оператор, который принял узел. "
+	"Без права traps.all другие увидят только свои ловушки. "
+	"Переназначить: trap-set-owner или шаг ниже."
+)
+
+SetupAskOwnerReassignText = "Назначить другого владельца"
+SetupAskOwnerUserIdText = "UUID пользователя-владельца"
+SetupOwnerUsersEmptyText = "Нет пользователей для назначения."
+SetupOwnerUsersListDeniedText = (
+	"Список пользователей недоступен (нужно users.write). "
+	"Введи UUID вручную или назначь позже: trap-set-owner."
+)
+SetupOwnerSetOkText = "Владелец обновлён."
+SetupOwnerSetSkipText = "Владелец оставлен без изменений."
 
 SetupStep5Header = "Этап 5/5 - Ввод в строй и контрольная проверка"
 
@@ -313,7 +389,10 @@ SetupSshConnectingText = "Центр подключается к {user}@{host}:{
 SetupSshCodeText = "Код с хоста: {code}"
 SetupSshFailedText = "Поставить по SSH не вышло: {detail}"
 SetupSshManualFallbackText = "Можно поставить вручную командой с карточки."
-DeployBadCenterText = "Адрес центра должен быть http:// или https:// без кавычек и пробелов."
+DeployBadCenterText = (
+	"Адрес центра: http(s)://host или host[:port] без кавычек и пробелов "
+	"(для агента/курьера - публичный канал, не :8088)."
+)
 
 SetupInstallCard = """
 +-----------------------------------------------------------+
@@ -322,13 +401,31 @@ SetupInstallCard = """
 |  Профиль:  {profile_name}
 |  Центр:    {api_base}
 |                                                           |
-|  НА ХОСТЕ ЛОВУШКИ:                                        |
+|  НА ХОСТЕ ЛОВУШКИ - три команды подряд:                   |
 |                                                           |
-|    curl -fsSL {api_base}/downloads/install.sh | \\        |
-|      API_BASE={api_base} sh                               |
+|  export API_BASE="{api_base}"
+|  curl -fsSL -o /tmp/hf-install.sh \\
+|    "$API_BASE/downloads/install.sh"
+|  sh /tmp/hf-install.sh
 |                                                           |
-|  Скрипт скачает агент из /downloads/, запишет .env        |
-|  и запустит pairing. Код подтверди здесь.                 |
+|  Код pairing: pair-confirm <код>
++-----------------------------------------------------------+
+"""
+
+SetupCourierInstallCard = """
++-----------------------------------------------------------+
+|  COURIER INSTALL CARD                                     |
+|  Имя:      {courier_name}
+|  Центр:    {api_base}
+|                                                           |
+|  НА ТРЕТЬЕМ ХОСТЕ (курьер) - три команды подряд:          |
+|                                                           |
+|  export API_BASE="{api_base}"
+|  curl -fsSL -o /tmp/hf-cinst.sh \\
+|    "$API_BASE/downloads/install-courier.sh"
+|  sh /tmp/hf-cinst.sh
+|                                                           |
+|  Код: courier-confirm <код> --name {courier_name}
 +-----------------------------------------------------------+
 """
 
@@ -392,6 +489,16 @@ Pairing / ловушки:
   traps-list                   - список ловушек и статусы
   trap-show <trap_id>
   trap-bind <trap_id> <profile_id>
+  trap-set-owner <trap_id> --user-id UUID
+  trap-set-courier-ssh <trap_id> --host H --user U [--password P] [--port 22]
+      [--data-dir /opt/honeyforge]
+
+Курьер (доставка логов с третьего хоста):
+  courier-list
+  courier-show <courier_id>
+  courier-pair-list [--status pending|...]
+  courier-confirm <device_code> [--name courier]
+  courier-deploy --host IP --user root [--port 22] [--api-base URL]
 
 События:
   events-list [--trap-id] [--type] [--source-ip] [--limit N]

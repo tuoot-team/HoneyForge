@@ -1,13 +1,17 @@
 #!/bin/sh
 # Ставит агент из /downloads/ центра и запускает pairing.
-#   curl -fsSL "$API_BASE/downloads/install.sh" | API_BASE="$API_BASE" sh
-#   sh install.sh http://127.0.0.1:8000
+# Не пайпить в sh (curl error 23). Скачай файл, потом:
+#   export API_BASE=https://example.com
+#   curl -fsSL -o /tmp/hf-install.sh "$API_BASE/downloads/install.sh"
+#   sh /tmp/hf-install.sh
 # HF_NO_START=1 только скачивает. HF_INSTALL_DIR задаёт каталог.
 set -eu
 
 msg_NeedCenter="Нужен адрес центра.
-  curl -fsSL \"\$API_BASE/downloads/install.sh\" | API_BASE=\"\$API_BASE\" sh
-  sh install.sh http://127.0.0.1:8000"
+  export API_BASE=https://example.com
+  curl -fsSL -o /tmp/hf-install.sh \"\$API_BASE/downloads/install.sh\"
+  sh /tmp/hf-install.sh
+  # или: sh install.sh https://example.com"
 msg_NeedArch="В /downloads/ лежит агент linux/amd64. Эта машина: "
 msg_NeedFetch="Нужен curl или wget, чтобы скачать агент."
 msg_Downloading="Скачиваю агент: "
@@ -47,14 +51,22 @@ mkdir -p "$dest"
 agent_url="${center}/downloads/agent"
 agent_path="${dest}/agent"
 echo "${msg_Downloading}${agent_url}"
+	tmp_path="${agent_path}.tmp.$$"
 if command -v curl >/dev/null 2>&1; then
-	curl -fsSL "$agent_url" -o "$agent_path"
+	curl -fsSL --connect-timeout 20 --max-time 300 --retry 3 --retry-delay 2 \
+		"$agent_url" -o "$tmp_path"
 elif command -v wget >/dev/null 2>&1; then
-	wget -q -O "$agent_path" "$agent_url"
+	wget -q -T 300 -O "$tmp_path" "$agent_url"
 else
 	echo "$msg_NeedFetch" >&2
 	exit 1
 fi
+if [ ! -s "$tmp_path" ]; then
+	rm -f "$tmp_path"
+	echo "Пустой бинарь agent - проверь $agent_url" >&2
+	exit 1
+fi
+mv -f "$tmp_path" "$agent_path"
 chmod +x "$agent_path"
 
 cat > "${dest}/.env" <<EOF

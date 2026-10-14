@@ -17,6 +17,7 @@ from app.texts import (
 	MSG_AUTH_BAD_TOKEN,
 	MSG_AUTH_DISABLED,
 	MSG_AUTH_REQUIRED,
+	MSG_COURIER_UNAUTHORIZED,
 	MSG_PERM_FORBIDDEN,
 )
 
@@ -109,3 +110,23 @@ def require_AgentTrap(
 
 
 AgentTrap = Annotated[models.Trap, Depends(require_AgentTrap)]
+
+
+def require_Courier(
+	db: DbSession,
+	x_courier_token: Annotated[str | None, Header(alias="X-Courier-Token")] = None,
+) -> models.Courier:
+	if not x_courier_token:
+		raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=MSG_COURIER_UNAUTHORIZED)
+	token_hash = hash_Secret(x_courier_token)
+	courier = (
+		db.query(models.Courier)
+		.filter(models.Courier.agent_token_hash == token_hash)
+		.one_or_none()
+	)
+	if courier is None:
+		raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=MSG_COURIER_UNAUTHORIZED)
+	return courier
+
+
+CourierAgent = Annotated[models.Courier, Depends(require_Courier)]

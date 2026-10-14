@@ -1,2 +1,4 @@
 Зарегистрированные ловушки (агенты).
 Список, статусы online/offline/last-seen, привязка профиля, постановка команд агенту.
+owner_user_id - оператор-владелец; видимость: traps.all / superadmin / свой owner.
+PATCH /traps/{id}/owner - назначение владельца (traps.write + all|owner).

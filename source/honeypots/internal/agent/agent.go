@@ -285,6 +285,15 @@ func (a *Agent) events_Loop(ctx context.Context) {
 }
 
 func (a *Agent) claim_Loop(ctx context.Context) {
+	a.claim_Loop_Interval(ctx, 15*time.Second)
+}
+
+func (a *Agent) claim_Loop_Slow(ctx context.Context) {
+	// В courier-режиме реже ходим в центр (только management).
+	a.claim_Loop_Interval(ctx, 5*time.Minute)
+}
+
+func (a *Agent) claim_Loop_Interval(ctx context.Context, every time.Duration) {
 	for {
 		out, err := a.Client.Claim_Commands()
 		if err != nil {
@@ -302,7 +311,7 @@ func (a *Agent) claim_Loop(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(15 * time.Second):
+		case <-time.After(every):
 		}
 	}
 }
@@ -487,9 +496,16 @@ func (a *Agent) Run(ctx context.Context) error {
 	loopCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	go a.heartbeat_Loop(loopCtx)
-	go a.events_Loop(loopCtx)
-	go a.claim_Loop(loopCtx)
+	courierMode := profile.Blocks.Mask.IsCourierMode()
+	if courierMode {
+		// Курьер: без batch/heartbeat/cover; редкий claim+config для управления.
+		fmt.Println(texts.MsgAgentCourierMode)
+		go a.claim_Loop_Slow(loopCtx)
+	} else {
+		go a.heartbeat_Loop(loopCtx)
+		go a.events_Loop(loopCtx)
+		go a.claim_Loop(loopCtx)
+	}
 	a.restart_Services(loopCtx)
 
 	<-ctx.Done()

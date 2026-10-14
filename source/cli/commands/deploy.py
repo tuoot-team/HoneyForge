@@ -6,6 +6,8 @@ import urllib.parse
 import client
 from texts import (
 	DeployBadCenterText,
+	DeployNoDeviceCodeText,
+	DeployPairNextText,
 	MsgApiError,
 	SetupAskSshPasswordText,
 	SetupSshCodeText,
@@ -23,11 +25,23 @@ def center_IsLoopback(url: str) -> bool:
 
 def check_CenterUrl(raw: str) -> str:
 	url = raw.strip().rstrip("/")
+	# host:port без схемы - считаем https (как у публичного канала центра).
+	if url and "://" not in url:
+		url = "https://" + url
 	parsed = urllib.parse.urlparse(url)
 	if parsed.scheme not in ("http", "https") or not parsed.hostname:
 		raise client.ApiError(DeployBadCenterText)
 	if any(char in url for char in "\"'`\\\n\r$;|&<> "):
 		raise client.ApiError(DeployBadCenterText)
+	return url
+
+
+def public_Agent_Center_Url(raw: str) -> str:
+	"""URL для агента/курьера/downloads: без операторского :8088."""
+	url = check_CenterUrl(raw)
+	parsed = urllib.parse.urlparse(url)
+	if parsed.port == 8088 and parsed.hostname:
+		return f"{parsed.scheme}://{parsed.hostname}"
 	return url
 
 
@@ -50,7 +64,7 @@ def install_AgentOverSsh(
 	)
 	code = str(result.get("device_code") or "").strip()
 	if not code:
-		raise client.ApiError("в ответе deploy нет device_code")
+		raise client.ApiError(DeployNoDeviceCodeText)
 	return code
 
 
@@ -78,4 +92,4 @@ def cmd_Deploy(args) -> None:
 		print(Fore.RED + MsgApiError.format(detail=str(exc)) + Style.RESET_ALL)
 		return
 	print(Fore.GREEN + SetupSshCodeText.format(code=code) + Style.RESET_ALL)
-	print_OpsLine("дальше", f"pair-confirm {code}")
+	print_OpsLine("дальше", DeployPairNextText.format(code=code))
