@@ -27,6 +27,7 @@ class Settings(BaseSettings):
 	POSTGRES_PASSWORD: str = "honeyforge"
 	POSTGRES_DB: str = "honeyforge"
 
+	OPERATOR_USERNAME: str = "admin"
 	OPERATOR_PASSWORD: str = "change-me"
 	OPERATOR_TOKEN_SECRET: str = "dev-change-me-operator-secret"
 	PUBLIC_BASE_URL: str = "http://localhost"

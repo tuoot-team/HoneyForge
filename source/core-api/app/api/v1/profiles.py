@@ -1,8 +1,8 @@
 from uuid import UUID
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
-from app.deps import DbSession, Operator
+from app.deps import CurrentUser, DbSession, require_Permission
 from app.domains.profiles import service as profile_service
 from app.domains.profiles.schemas import (
 	AuthMode,
@@ -14,6 +14,8 @@ from app.domains.profiles.schemas import (
 	ProfileUpdate,
 	SshServiceBlock,
 )
+from app.domains.rbac import service as rbac_service
+from app.domains.rbac.permissions import PERM_PROFILES_READ, PERM_PROFILES_WRITE
 
 router = APIRouter(prefix="/profiles", tags=["profiles"])
 
@@ -45,27 +47,69 @@ def validate_Profile(_body: ProfileCreate) -> dict:
 
 
 @router.get("/", response_model=list[ProfileOut])
-def list_Profiles(db: DbSession, _operator: Operator) -> list[ProfileOut]:
+def list_Profiles(
+	db: DbSession,
+	_operator: CurrentUser = Depends(require_Permission(PERM_PROFILES_READ)),
+) -> list[ProfileOut]:
 	return profile_service.list_Profiles(db)
 
 
 @router.post("/", response_model=ProfileOut, status_code=201)
-def create_Profile(db: DbSession, _operator: Operator, body: ProfileCreate) -> ProfileOut:
-	return profile_service.create_Profile(db, body)
+def create_Profile(
+	db: DbSession,
+	body: ProfileCreate,
+	operator: CurrentUser = Depends(require_Permission(PERM_PROFILES_WRITE)),
+) -> ProfileOut:
+	out = profile_service.create_Profile(db, body)
+	rbac_service.write_Audit(
+		db,
+		actor=operator.username,
+		action="profile.create",
+		resource_type="profile",
+		resource_id=str(out.id),
+		payload={"name": out.name},
+	)
+	return out
 
 
 @router.get("/{profile_id}", response_model=ProfileOut)
-def get_Profile(db: DbSession, _operator: Operator, profile_id: UUID) -> ProfileOut:
+def get_Profile(
+	db: DbSession,
+	profile_id: UUID,
+	_operator: CurrentUser = Depends(require_Permission(PERM_PROFILES_READ)),
+) -> ProfileOut:
 	return profile_service.get_Profile(db, profile_id)
 
 
 @router.patch("/{profile_id}", response_model=ProfileOut)
 def update_Profile(
-	db: DbSession, _operator: Operator, profile_id: UUID, body: ProfileUpdate
+	db: DbSession,
+	profile_id: UUID,
+	body: ProfileUpdate,
+	operator: CurrentUser = Depends(require_Permission(PERM_PROFILES_WRITE)),
 ) -> ProfileOut:
-	return profile_service.update_Profile(db, profile_id, body)
+	out = profile_service.update_Profile(db, profile_id, body)
+	rbac_service.write_Audit(
+		db,
+		actor=operator.username,
+		action="profile.update",
+		resource_type="profile",
+		resource_id=str(out.id),
+	)
+	return out
 
 
 @router.delete("/{profile_id}", status_code=204)
-def delete_Profile(db: DbSession, _operator: Operator, profile_id: UUID) -> None:
+def delete_Profile(
+	db: DbSession,
+	profile_id: UUID,
+	operator: CurrentUser = Depends(require_Permission(PERM_PROFILES_WRITE)),
+) -> None:
 	profile_service.delete_Profile(db, profile_id)
+	rbac_service.write_Audit(
+		db,
+		actor=operator.username,
+		action="profile.delete",
+		resource_type="profile",
+		resource_id=str(profile_id),
+	)

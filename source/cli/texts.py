@@ -65,9 +65,22 @@ CoreApiErrorText = "Не удалось подключиться к CoreAPI.\n" 
 "Попробуйте >cd core-api\n"\
 ">uvicorn app.main:app --reload --host 127.0.0.1 --port 8000"
 
-PasswordErrorText = "Неверный пароль. Попробуйте ещё раз."
+PasswordErrorText = "Неверный логин или пароль. Попробуйте ещё раз."
 
 LoginSuccessText = "Вход выполнен. Добро пожаловать в HoneyForge."
+
+UserListHeaderText = "Пользователи:"
+UserListEmptyText = "Пользователей нет"
+UserCreatedText = "Создан пользователь {username} ({user_id}), роль {role}"
+UserUpdatedText = "Пользователь {username}: роль {role}"
+UserDisabledText = "Пользователь {username}: {state}"
+
+RoleListHeaderText = "Роли:"
+RoleListEmptyText = "Ролей нет"
+RolePermsHeaderText = "Каталог прав:"
+RoleCreatedText = "Создана роль {name} ({role_id})"
+RoleUpdatedText = "Роль {name} обновлена"
+RoleDeletedText = "Роль {role_id} удалена"
 
 WelcomeText = "Введите help - список команд. Новичкам: setup (развёртывание ловушки)."
 
@@ -342,8 +355,19 @@ HelpText = """Команды HoneyForge CLI:
                                - поставить агент через центр по SSH
   exit | quit                  - выход
   health                       - GET /health
-  me                           - текущий оператор (Bearer)
+  me                           - текущий пользователь, роль и права
   logout                       - сбросить Bearer-токен
+
+Пользователи и роли (нужны права users.write / roles.write):
+  user-list
+  user-create --username U --role-id UUID [--password P] [--superadmin]
+  user-set-role <user_id> --role-id UUID
+  user-disable <user_id> | user-disable <user_id> --enable
+  role-list
+  role-perms                   - каталог прав
+  role-create --name N [--permissions a,b,c]
+  role-set-perms <role_id> --permissions a,b,c
+  role-delete <role_id>
 
 Профили (конструктор, слоты сервиса):
   profile-schema               - типы сервисов, режимы auth, пример
@@ -381,6 +405,6 @@ Pairing / ловушки:
   fs-pack-delete TOKEN
   В профиле shell.fs_pack = token (fsp_...) или ubuntu-22.04 / builtin.
 
-Перед командами нужен login (пароль при старте CLI).
+При старте CLI: логин и пароль (bootstrap из .env центра: OPERATOR_USERNAME / OPERATOR_PASSWORD).
 API_BASE задаётся в .env (по умолчанию http://127.0.0.1:8000).
 """

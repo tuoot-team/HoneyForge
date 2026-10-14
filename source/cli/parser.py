@@ -7,6 +7,19 @@ from commands.auth import cmd_Health, cmd_Logout, cmd_Me
 from commands.events import cmd_EventsList, cmd_EventsTail
 from commands.fs_packs import cmd_FsPackDelete, cmd_FsPackList, cmd_FsPackUpload
 from commands.maintenance import cmd_DbReset, cmd_LogsClear
+from commands.roles import (
+	cmd_RoleCreate,
+	cmd_RoleDelete,
+	cmd_RoleList,
+	cmd_RolePerms,
+	cmd_RoleSetPerms,
+)
+from commands.users import (
+	cmd_UserCreate,
+	cmd_UserDisable,
+	cmd_UserList,
+	cmd_UserSetRole,
+)
 from commands.profiles import (
 	cmd_ProfileCreate,
 	cmd_ProfileDelete,
@@ -62,6 +75,46 @@ def create_parser() -> argparse.ArgumentParser:
 
 	p_logout = sub.add_parser("logout", help="сбросить Bearer-токен")
 	p_logout.set_defaults(func=cmd_Logout)
+
+	p_ul = sub.add_parser("user-list", help="список пользователей")
+	p_ul.set_defaults(func=cmd_UserList)
+
+	p_uc = sub.add_parser("user-create", help="создать пользователя")
+	p_uc.add_argument("--username", required=True)
+	p_uc.add_argument("--role-id", required=True)
+	p_uc.add_argument("--password", default="", help="иначе спросит")
+	p_uc.add_argument("--superadmin", action="store_true")
+	p_uc.set_defaults(func=cmd_UserCreate)
+
+	p_usr = sub.add_parser("user-set-role", help="сменить роль пользователя")
+	p_usr.add_argument("user_id")
+	p_usr.add_argument("--role-id", required=True)
+	p_usr.set_defaults(func=cmd_UserSetRole)
+
+	p_ud = sub.add_parser("user-disable", help="отключить или включить пользователя")
+	p_ud.add_argument("user_id")
+	p_ud.add_argument("--enable", action="store_true", help="включить обратно")
+	p_ud.set_defaults(func=cmd_UserDisable)
+
+	p_rl = sub.add_parser("role-list", help="список ролей")
+	p_rl.set_defaults(func=cmd_RoleList)
+
+	p_rp = sub.add_parser("role-perms", help="каталог прав")
+	p_rp.set_defaults(func=cmd_RolePerms)
+
+	p_rc = sub.add_parser("role-create", help="создать кастомную роль")
+	p_rc.add_argument("--name", required=True)
+	p_rc.add_argument("--permissions", default="", help="через запятую")
+	p_rc.set_defaults(func=cmd_RoleCreate)
+
+	p_rsp = sub.add_parser("role-set-perms", help="задать права роли")
+	p_rsp.add_argument("role_id")
+	p_rsp.add_argument("--permissions", required=True, help="через запятую")
+	p_rsp.set_defaults(func=cmd_RoleSetPerms)
+
+	p_rd = sub.add_parser("role-delete", help="удалить кастомную роль")
+	p_rd.add_argument("role_id")
+	p_rd.set_defaults(func=cmd_RoleDelete)
 
 	p_ps = sub.add_parser("profile-schema", help="схема конструктора")
 	p_ps.set_defaults(func=cmd_ProfileSchema)

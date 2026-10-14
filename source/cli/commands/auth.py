@@ -5,9 +5,9 @@ import display
 from texts import LogoutSuccessText, MeErrorText, MsgApiError
 
 
-def auth_Login(password: str) -> str | None:
+def auth_Login(username: str, password: str) -> str | None:
 	try:
-		data = client.post_Login(password)
+		data = client.post_Login(username, password)
 		return data.get("access_token")
 	except client.ApiError as exc:
 		if client.is_Debug():

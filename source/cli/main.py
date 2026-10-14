@@ -22,8 +22,9 @@ def run_Login() -> None:
 	is_logged = False
 	clear_Screen()
 	while not is_logged:
+		enter_Username = input(Fore.GREEN + "Логин: " + Style.RESET_ALL).strip()
 		enter_Password = input(Fore.GREEN + "Пароль: " + Style.RESET_ALL)
-		if auth_Login(enter_Password) not in [None, ""]:
+		if enter_Username and auth_Login(enter_Username, enter_Password) not in [None, ""]:
 			is_logged = True
 		else:
 			print(Fore.RED + PasswordErrorText + Style.RESET_ALL)

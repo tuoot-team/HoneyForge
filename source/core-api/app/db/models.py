@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import JSON, Uuid
 
@@ -110,4 +110,28 @@ class FsPack(Base):
 	format: Mapped[str] = mapped_column(Text, nullable=False)
 	size_bytes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 	sha256: Mapped[str] = mapped_column(Text, nullable=False, default="")
+	created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Role(Base):
+	__tablename__ = "roles"
+
+	id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+	name: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+	is_system: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+	permissions: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+	created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class User(Base):
+	__tablename__ = "users"
+
+	id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+	username: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+	password_hash: Mapped[str] = mapped_column(Text, nullable=False)
+	is_superadmin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+	disabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+	role_id: Mapped[uuid.UUID] = mapped_column(
+		Uuid, ForeignKey("roles.id", ondelete="RESTRICT"), nullable=False
+	)
 	created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

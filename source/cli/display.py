@@ -111,10 +111,14 @@ def print_Health(data: dict) -> None:
 
 
 def print_Me(data: dict) -> None:
-	print_Section("operator")
+	print_Section("user")
+	print_OpsLine("username", str(data.get("username", "?")))
 	print_OpsLine("role", str(data.get("role", "?")))
 	for key, value in data.items():
-		if key == "role":
+		if key in ("username", "role"):
+			continue
+		if key == "permissions" and isinstance(value, list):
+			print_OpsLine(key, ", ".join(str(item) for item in value))
 			continue
 		print_OpsLine(key, str(value))
 	maybe_Print_RawJson(data)

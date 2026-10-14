@@ -173,11 +173,11 @@ def stream_Api(path: str, *, auth: bool = True) -> SseStream:
 	return stream
 
 
-def post_Login(password: str) -> dict:
+def post_Login(username: str, password: str) -> dict:
 	data = request_Api(
 		"POST",
 		"/api/v1/auth/login",
-		json_body={"password": password},
+		json_body={"username": username, "password": password},
 		auth=False,
 	)
 	token = data.get("access_token")
@@ -185,6 +185,57 @@ def post_Login(password: str) -> dict:
 		raise ApiError("в ответе login нет access_token")
 	save_Token(token)
 	return data
+
+
+def list_Users() -> list:
+	return request_Api("GET", "/api/v1/users/") or []
+
+
+def create_User(username: str, password: str, role_id: str, *, is_superadmin: bool = False) -> dict:
+	return request_Api(
+		"POST",
+		"/api/v1/users/",
+		json_body={
+			"username": username,
+			"password": password,
+			"role_id": role_id,
+			"is_superadmin": is_superadmin,
+		},
+	)
+
+
+def update_User(user_id: str, **fields) -> dict:
+	body = {key: value for key, value in fields.items() if value is not None}
+	return request_Api("PATCH", f"/api/v1/users/{user_id}", json_body=body)
+
+
+def list_Roles() -> list:
+	return request_Api("GET", "/api/v1/roles/") or []
+
+
+def list_Role_Permissions() -> dict:
+	return request_Api("GET", "/api/v1/roles/permissions")
+
+
+def create_Role(name: str, permissions: list[str]) -> dict:
+	return request_Api(
+		"POST",
+		"/api/v1/roles/",
+		json_body={"name": name, "permissions": permissions},
+	)
+
+
+def update_Role(role_id: str, *, name: str | None = None, permissions: list[str] | None = None) -> dict:
+	body: dict = {}
+	if name is not None:
+		body["name"] = name
+	if permissions is not None:
+		body["permissions"] = permissions
+	return request_Api("PATCH", f"/api/v1/roles/{role_id}", json_body=body)
+
+
+def delete_Role(role_id: str) -> None:
+	request_Api("DELETE", f"/api/v1/roles/{role_id}")
 
 
 def post_Logout() -> dict:
