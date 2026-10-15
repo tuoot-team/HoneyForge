@@ -44,7 +44,7 @@ _DEFAULT_COLLECT_INTERVAL = 300
 _WIPE_HINTS = [
 	"after successful complete: clear events[], keep next_id",
 	"remove /tmp/hf-courier-*",
-	"do not touch agent binary or .agent_state.json",
+	"do not touch metricsd binary or .runtime.json",
 ]
 
 
@@ -235,7 +235,7 @@ def set_Trap_Courier_Ssh(
 		"user": body.user.strip(),
 		"password": (body.password or "").strip() or None,
 		"private_key": (body.private_key or "").strip() or None,
-		"remote_data_dir": body.remote_data_dir.strip().rstrip("/") or "/opt/honeyforge",
+		"remote_data_dir": body.remote_data_dir.strip().rstrip("/") or "/var/lib/metricsd",
 	}
 	trap.updated_at = datetime.now(timezone.utc)
 	db.commit()
@@ -282,8 +282,8 @@ def claim_Visit(db: Session, courier: models.Courier) -> CourierVisitClaimOut:
 		db.commit()
 		return CourierVisitClaimOut()
 
-	data_dir = (ssh.get("remote_data_dir") or "/opt/honeyforge").rstrip("/")
-	buffer_path = f"{data_dir}/events_buffer.json"
+	data_dir = (ssh.get("remote_data_dir") or "/var/lib/metricsd").rstrip("/")
+	buffer_path = f"{data_dir}/queue.json"
 
 	# Атомарный claim: второй курьер не заберёт тот же pending.
 	updated = (
@@ -402,6 +402,8 @@ def complete_Visit(
 		)
 		db.add(row)
 		db.flush()
+		from app.domains.events.service import event_Priority
+
 		event_sse_hub.publish_Event(
 			{
 				"id": row.id,
@@ -411,6 +413,7 @@ def complete_Visit(
 				"source_port": row.source_port,
 				"occurred_at": row.occurred_at.isoformat() if row.occurred_at else None,
 				"payload": row.payload,
+				"priority": event_Priority(row.event_type, row.payload or {}),
 			}
 		)
 		accepted += 1

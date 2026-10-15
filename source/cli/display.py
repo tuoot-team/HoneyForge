@@ -47,7 +47,7 @@ def paint_Level(level: str | None) -> str:
 
 def paint_EventType(event_type: str | None) -> str:
 	raw = event_type or "?"
-	hot = ("auth_attempt", "login", "credential", "db_command")
+	hot = ("auth_attempt", "login", "credential", "db_command", "shell_command", "honeytoken_hit")
 	warm = ("http_request", "banner_grab", "port_connect")
 	if any(k in raw for k in hot):
 		color = Fore.RED + Style.BRIGHT
@@ -55,6 +55,17 @@ def paint_EventType(event_type: str | None) -> str:
 		color = Fore.YELLOW
 	else:
 		color = Fore.CYAN
+	return f"{color}{raw}{Style.RESET_ALL}"
+
+
+def paint_Priority(priority: str | None) -> str:
+	raw = (priority or "low").lower()
+	palette = {
+		"high": Fore.RED + Style.BRIGHT,
+		"medium": Fore.YELLOW + Style.BRIGHT,
+		"low": Fore.WHITE + Style.DIM,
+	}
+	color = palette.get(raw, Fore.WHITE)
 	return f"{color}{raw}{Style.RESET_ALL}"
 
 
@@ -427,12 +438,25 @@ def _payload_Summary(payload: dict | None) -> str:
 	if not payload:
 		return ""
 	parts: list[str] = []
-	for key in ("username", "password", "command", "database", "service", "path", "method", "port", "banner"):
+	for key in (
+		"token_id",
+		"kind",
+		"trigger",
+		"username",
+		"password",
+		"command",
+		"database",
+		"service",
+		"path",
+		"method",
+		"port",
+		"banner",
+	):
 		if key in payload and payload[key] not in (None, ""):
 			val = payload[key]
-			if key in ("username", "password", "command"):
+			if key in ("username", "password", "command", "token_id"):
 				parts.append(f"{key}={Fore.RED}{val}{Style.RESET_ALL}")
-			elif key == "path":
+			elif key in ("path", "trigger", "kind"):
 				parts.append(f"{key}={Fore.YELLOW}{val}{Style.RESET_ALL}")
 			else:
 				parts.append(f"{key}={val}")
@@ -446,6 +470,7 @@ def _payload_Summary(payload: dict | None) -> str:
 def print_EventRow(event: dict) -> None:
 	occurred = format_Time(event.get("occurred_at") or event.get("created_at"))
 	etype = paint_EventType(event.get("event_type"))
+	prio = paint_Priority(event.get("priority"))
 	ip = event.get("source_ip") or "-"
 	port = event.get("source_port")
 	src = f"{Fore.CYAN}{ip}{Style.RESET_ALL}"
@@ -455,7 +480,7 @@ def print_EventRow(event: dict) -> None:
 	summary = _payload_Summary(event.get("payload") or {})
 	eid = event.get("id", "")
 	id_part = f"{Style.DIM}#{eid}{Style.RESET_ALL} " if eid != "" else ""
-	print(f"  {id_part}{occurred}  {etype}  {src}  trap={trap}  {summary}")
+	print(f"  {id_part}{occurred}  [{prio}] {etype}  {src}  trap={trap}  {summary}")
 
 
 def print_EventList(data: dict) -> None:
@@ -486,3 +511,32 @@ def print_SseDataLine(raw: str) -> None:
 			print_EventRow(event)
 			return
 	print(json.dumps(payload, ensure_ascii=False, default=str))
+
+
+def print_EventChains(data: dict) -> None:
+	items = data.get("items") or []
+	total = data.get("total", len(items))
+	if not items:
+		print_Empty("цепочек")
+		maybe_Print_RawJson(data)
+		return
+	print_Section(f"Цепочки source_ip ({len(items)} из {total})")
+	for item in items:
+		ip = item.get("source_ip") or "-"
+		lateral = (
+			Fore.RED + Style.BRIGHT + "LATERAL" + Style.RESET_ALL
+			if item.get("is_lateral")
+			else Style.DIM + "single" + Style.RESET_ALL
+		)
+		prio = paint_Priority(item.get("max_priority"))
+		ports = ",".join(str(p) for p in (item.get("ports") or [])) or "-"
+		services = ",".join(item.get("services") or []) or "-"
+		types = ",".join(item.get("event_types") or []) or "-"
+		trap = short_Id(item.get("trap_id"))
+		count = item.get("event_count", 0)
+		print(
+			f"  {Fore.CYAN}{ip}{Style.RESET_ALL}  [{prio}] {lateral}  "
+			f"events={count}  ports={ports}  services={services}"
+		)
+		print(f"    trap={trap}  types={types}")
+	maybe_Print_RawJson(data)

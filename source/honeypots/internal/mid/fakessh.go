@@ -2,6 +2,9 @@ package mid
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -19,11 +22,39 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	agentauth "honeyforge/honeypots/internal/auth"
-	"honeyforge/honeypots/internal/model"
-	"honeyforge/honeypots/internal/state"
-	"honeyforge/honeypots/internal/texts"
+	agentauth "metricsd/internal/auth"
+	"metricsd/internal/model"
+	"metricsd/internal/state"
+	"metricsd/internal/texts"
 )
+
+// Алгоритмы как у типичного OpenSSH 8.9 (без ML-KEM из дефолтов Go).
+func openSshLikeAlgos() ssh.Config {
+	return ssh.Config{
+		KeyExchanges: []string{
+			ssh.KeyExchangeCurve25519,
+			"curve25519-sha256@libssh.org",
+			ssh.KeyExchangeECDHP256,
+			ssh.KeyExchangeECDHP384,
+			ssh.KeyExchangeECDHP521,
+			ssh.KeyExchangeDH14SHA256,
+		},
+		Ciphers: []string{
+			ssh.CipherChaCha20Poly1305,
+			ssh.CipherAES128GCM,
+			ssh.CipherAES256GCM,
+			ssh.CipherAES128CTR,
+			ssh.CipherAES192CTR,
+			ssh.CipherAES256CTR,
+		},
+		MACs: []string{
+			ssh.HMACSHA256ETM,
+			ssh.HMACSHA512ETM,
+			ssh.HMACSHA256,
+			ssh.HMACSHA512,
+		},
+	}
+}
 
 const defaultSshIdentification = "SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.6"
 
@@ -149,28 +180,119 @@ func Pick_AuthDelay(delayMinMs, delayMaxMs int) time.Duration {
 	return time.Duration(ms) * time.Millisecond
 }
 
-func Load_HostKey(path string) (ssh.Signer, error) {
+func load_OrMake_Signer(path string, generate func() (ssh.Signer, []byte, error)) (ssh.Signer, error) {
 	if data, err := os.ReadFile(path); err == nil {
 		signer, err := ssh.ParsePrivateKey(data)
 		if err == nil {
 			return signer, nil
 		}
 	}
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	signer, pemBytes, err := generate()
 	if err != nil {
 		return nil, err
 	}
+	_ = os.MkdirAll(filepath.Dir(path), 0o755)
+	_ = os.WriteFile(path, pemBytes, 0o600)
+	return signer, nil
+}
+
+func generate_RSA_HostKey() (ssh.Signer, []byte, error) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return nil, nil, err
+	}
 	signer, err := ssh.NewSignerFromKey(key)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	block := &pem.Block{
 		Type:  "RSA PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(key),
 	}
-	_ = os.MkdirAll(filepath.Dir(path), 0o755)
-	_ = os.WriteFile(path, pem.EncodeToMemory(block), 0o600)
-	return signer, nil
+	return signer, pem.EncodeToMemory(block), nil
+}
+
+func generate_Ed25519_HostKey() (ssh.Signer, []byte, error) {
+	_, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return nil, nil, err
+	}
+	signer, err := ssh.NewSignerFromKey(priv)
+	if err != nil {
+		return nil, nil, err
+	}
+	der, err := x509.MarshalPKCS8PrivateKey(priv)
+	if err != nil {
+		return nil, nil, err
+	}
+	block := &pem.Block{Type: "PRIVATE KEY", Bytes: der}
+	return signer, pem.EncodeToMemory(block), nil
+}
+
+func generate_ECDSA_HostKey() (ssh.Signer, []byte, error) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, nil, err
+	}
+	signer, err := ssh.NewSignerFromKey(key)
+	if err != nil {
+		return nil, nil, err
+	}
+	der, err := x509.MarshalECPrivateKey(key)
+	if err != nil {
+		return nil, nil, err
+	}
+	block := &pem.Block{Type: "EC PRIVATE KEY", Bytes: der}
+	return signer, pem.EncodeToMemory(block), nil
+}
+
+// Load_HostKeys - ed25519 + ecdsa + rsa, как набор ключей Ubuntu OpenSSH.
+func Load_HostKeys(basePath string) ([]ssh.Signer, error) {
+	dir := filepath.Dir(basePath)
+	edPath := filepath.Join(dir, ".ssh_host_ed25519")
+	ecPath := filepath.Join(dir, ".ssh_host_ecdsa")
+	rsaPath := basePath
+	if filepath.Base(basePath) == ".ssh_host_key" {
+		rsaPath = filepath.Join(dir, ".ssh_host_rsa")
+		// Старый одиночный ключ - подхватить как RSA, если нового ещё нет.
+		if _, err := os.Stat(rsaPath); err != nil {
+			if _, errOld := os.Stat(basePath); errOld == nil {
+				rsaPath = basePath
+			}
+		}
+	}
+
+	var signers []ssh.Signer
+	ed, err := load_OrMake_Signer(edPath, generate_Ed25519_HostKey)
+	if err != nil {
+		return nil, err
+	}
+	signers = append(signers, ed)
+
+	ec, err := load_OrMake_Signer(ecPath, generate_ECDSA_HostKey)
+	if err != nil {
+		return nil, err
+	}
+	signers = append(signers, ec)
+
+	rsaSig, err := load_OrMake_Signer(rsaPath, generate_RSA_HostKey)
+	if err != nil {
+		return nil, err
+	}
+	signers = append(signers, rsaSig)
+	return signers, nil
+}
+
+// Load_HostKey - совместимость: первый ключ из набора (ed25519).
+func Load_HostKey(path string) (ssh.Signer, error) {
+	signers, err := Load_HostKeys(path)
+	if err != nil {
+		return nil, err
+	}
+	if len(signers) == 0 {
+		return nil, fmt.Errorf("no host keys")
+	}
+	return signers[0], nil
 }
 
 func Start_FakeSsh(
@@ -187,16 +309,19 @@ func Start_FakeSsh(
 	onEvent EventHandler,
 	debug bool,
 	loadPack LoadFsPackBytes,
+	fileBaits map[string]string,
+	tokens *HoneytokenRegistry,
 ) error {
 	hostname := Build_Hostname(seed)
 	// crypto/ssh сам допишет \r\n; сюда только identification без перевода строки.
 	serverVersion := Ssh_Identification(banner)
-	signer, err := Load_HostKey(hostKeyPath)
+	signers, err := Load_HostKeys(hostKeyPath)
 	if err != nil {
 		return err
 	}
 
 	config := &ssh.ServerConfig{
+		Config: openSshLikeAlgos(),
 		PasswordCallback: func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
 			delay := Pick_AuthDelay(authModule.DelayMsMin, authModule.DelayMsMax)
 			if delay > 0 {
@@ -207,11 +332,12 @@ func Start_FakeSsh(
 			if ip != nil {
 				sourceIP = *ip
 			}
+			pass := string(password)
 			success := authStore.Evaluate(
 				serviceName,
 				sourceIP,
 				conn.User(),
-				string(password),
+				pass,
 				authModule,
 				credentials,
 			)
@@ -225,11 +351,17 @@ func Start_FakeSsh(
 				OccurredAt: state.Now_Iso(),
 				Payload: map[string]any{
 					"username": conn.User(),
-					"password": string(password),
+					"password": pass,
 					"service":  serviceName,
 					"success":  success,
 				},
 			})
+			if meta, ok := tokens.Match_Cred(conn.User(), pass); ok {
+				Emit_HoneytokenHit(onEvent, ip, sport, meta, "auth", map[string]any{
+					"service": serviceName,
+					"port":    port,
+				})
+			}
 			if !success {
 				return nil, fmt.Errorf("permission denied")
 			}
@@ -237,7 +369,9 @@ func Start_FakeSsh(
 		},
 		ServerVersion: serverVersion,
 	}
-	config.AddHostKey(signer)
+	for _, signer := range signers {
+		config.AddHostKey(signer)
+	}
 
 	addr := fmt.Sprintf("0.0.0.0:%d", port)
 	ln, err := net.Listen("tcp", addr)
@@ -274,6 +408,8 @@ func Start_FakeSsh(
 			onEvent,
 			debug,
 			loadPack,
+			fileBaits,
+			tokens,
 		)
 	}
 }
@@ -289,6 +425,8 @@ func serve_SSH(
 	onEvent EventHandler,
 	debug bool,
 	loadPack LoadFsPackBytes,
+	fileBaits map[string]string,
+	tokens *HoneytokenRegistry,
 ) {
 	defer tcpConn.Close()
 	ip, sport := peerFromAddr(tcpConn.RemoteAddr())
@@ -344,6 +482,8 @@ func serve_SSH(
 			shellModule,
 			onEvent,
 			loadPack,
+			fileBaits,
+			tokens,
 		)
 	}
 }
@@ -359,6 +499,8 @@ func handle_Session(
 	shellModule model.ShellModule,
 	onEvent EventHandler,
 	loadPack LoadFsPackBytes,
+	fileBaits map[string]string,
+	tokens *HoneytokenRegistry,
 ) {
 	defer channel.Close()
 	shell := New_FakeShell(
@@ -371,6 +513,8 @@ func handle_Session(
 		onEvent,
 		loadPack,
 	)
+	Apply_FileBaits(shell, fileBaits)
+	Apply_HoneytokenFiles(shell, tokens)
 
 	for req := range requests {
 		switch req.Type {

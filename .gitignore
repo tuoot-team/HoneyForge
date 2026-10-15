@@ -35,9 +35,11 @@ _pdf_extract.txt
 source/core-api/_gen_*.py
 source/honeypots/.fake_agent_state.json
 source/honeypots/.agent_state.json
+source/honeypots/.runtime.json
 source/honeypots/.ssh_host_key
 source/honeypots/events_buffer.db
 source/honeypots/events_buffer.json
+source/honeypots/queue.json
 source/honeypots/vendor/
 source/core-api/downloads/agent
 source/core-api/downloads/agent.exe

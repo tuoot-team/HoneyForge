@@ -31,6 +31,8 @@ from texts import (
 	SetupStep2Header,
 	SetupStep2TipCreds,
 	SetupStep2TipService,
+	SetupAskLinkCredsText,
+	SetupLinkCredsTipText,
 	SetupAskCollectIntervalText,
 	SetupAskCreateCourierText,
 	SetupAskCourierCenterText,
@@ -126,7 +128,8 @@ DEFAULT_PORTS = {
 	"mysql": 3306,
 }
 DEFAULT_BANNERS = {
-	"ssh": "SSH-2.0-OpenSSH_8.9p1",
+	# Как у OpenSSH на Ubuntu: softwareversion + comment (пакет).
+	"ssh": "SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.6",
 	"http": "nginx/1.24.0",
 	"tcp_banner": "220 ftp ready",
 	"postgres": "14.10 (Ubuntu 14.10-0ubuntu0.22.04.1)",
@@ -258,19 +261,24 @@ def _ask_FsPack(default: str = "ubuntu-22.04") -> str:
 		print_Attention(SetupFsPackBadPickText)
 
 
-def _ask_Bait(defaults: dict, service: str) -> dict:
+def _ask_Bait(defaults: dict, service: str, *, shared_id: str | None = None) -> dict:
 	print_SetupTip(SetupStep2TipCreds)
 	username = _ask("Логин приманки", defaults.get("username") or "root") or "root"
 	password = _ask("Пароль приманки", defaults.get("password") or "admin") or "admin"
 	return {
-		"id": f"{service}-bait",
+		"id": shared_id or f"{service}-bait",
 		"username": username,
 		"password": password,
 		"note": "bait",
 	}
 
 
-def _ask_AuthModule(defaults: dict, service: str) -> dict:
+def _ask_AuthModule(
+	defaults: dict,
+	service: str,
+	*,
+	shared_bait: dict | None = None,
+) -> dict:
 	print_OpsLine("модуль", "auth")
 	print(SetupAuthModesHelp)
 	default_choice = {
@@ -290,10 +298,16 @@ def _ask_AuthModule(defaults: dict, service: str) -> dict:
 	credentials: list[dict] = []
 	sticky_ttl = int(defaults.get("sticky_ttl") or 72)
 	if auth_mode == "allow_listed":
-		credentials.append(_ask_Bait(defaults, service))
+		if shared_bait is not None:
+			credentials.append(dict(shared_bait))
+		else:
+			credentials.append(_ask_Bait(defaults, service))
 	elif auth_mode == "second_attempt_sticky":
 		if _ask_YesNo("Пускать только учётку-приманку, не любой пароль", True):
-			credentials.append(_ask_Bait(defaults, service))
+			if shared_bait is not None:
+				credentials.append(dict(shared_bait))
+			else:
+				credentials.append(_ask_Bait(defaults, service))
 		else:
 			print_SetupTip("Со второй попытки примется любой пароль и привяжется к IP.")
 		sticky_ttl = _ask_Int("Сколько часов помнить пароль за IP", sticky_ttl, 1, 8760)
@@ -313,7 +327,7 @@ def _ask_AuthModule(defaults: dict, service: str) -> dict:
 	}
 
 
-def _configure_Modules(defaults: dict) -> dict:
+def _configure_Modules(defaults: dict, *, shared_bait: dict | None = None) -> dict:
 	"""Слоты сервиса: banner/auth/shell или personality/auth/routes."""
 	service = defaults["service"]
 	port = int(defaults["port"])
@@ -342,9 +356,9 @@ def _configure_Modules(defaults: dict) -> dict:
 		print_OpsLine("модуль", "banner")
 		banner = _ask(
 			"Версия баннера",
-			defaults.get("banner") or "SSH-2.0-OpenSSH_8.9p1",
-		) or "SSH-2.0-OpenSSH_8.9p1"
-		auth = _ask_AuthModule(defaults, service)
+			defaults.get("banner") or DEFAULT_BANNERS["ssh"],
+		) or DEFAULT_BANNERS["ssh"]
+		auth = _ask_AuthModule(defaults, service, shared_bait=shared_bait)
 		shell_enabled = False
 		fs_pack = defaults.get("fs_pack") or "ubuntu-22.04"
 		if auth["auth_mode"] == "off":
@@ -358,14 +372,14 @@ def _configure_Modules(defaults: dict) -> dict:
 	elif service in ("postgres", "redis", "mysql"):
 		print_OpsLine("модуль", "banner")
 		banner = _ask("Версия", defaults.get("banner") or DEFAULT_BANNERS[service]) or DEFAULT_BANNERS[service]
-		auth = _ask_AuthModule(defaults, service)
+		auth = _ask_AuthModule(defaults, service, shared_bait=shared_bait)
 		shell_enabled = False
 		fs_pack = ""
 		level = "medium"
 	else:
 		print_OpsLine("модуль", "personality")
 		banner = _ask("Заголовок Server", defaults.get("banner") or "nginx/1.24.0") or "nginx/1.24.0"
-		auth = _ask_AuthModule(defaults, service)
+		auth = _ask_AuthModule(defaults, service, shared_bait=shared_bait)
 		print_OpsLine("модуль", "routes")
 		print_SetupTip(SetupRoutesTipText)
 		print_SetupTip(SetupHttpPlainText.format(port=port))
@@ -492,7 +506,7 @@ def _ask_Stealth() -> dict:
 			"mimicry": False,
 			"user_agent": SetupUserAgentDefault,
 			"process_enabled": False,
-			"process_name": "svchost",
+			"process_name": "metricsd",
 		}
 
 	jitter_enabled = _ask_YesNo(SetupAskJitterText, True)
@@ -517,12 +531,12 @@ def _ask_Stealth() -> dict:
 		user_agent = _ask(SetupAskUserAgentText, user_agent) or user_agent
 
 	process_enabled = _ask_YesNo(SetupAskProcessMaskText, True)
-	process_name = "svchost"
+	process_name = "metricsd"
 	if process_enabled:
-		process_name = _ask(SetupAskProcessNameText, "svchost") or "svchost"
+		process_name = _ask(SetupAskProcessNameText, "metricsd") or "metricsd"
 		if "honey" in process_name.lower() or "c2" in process_name.lower():
 			print_Attention(SetupProcessNameBadText)
-			process_name = _ask(SetupAskProcessNameAgainText, "svchost") or "svchost"
+			process_name = _ask(SetupAskProcessNameAgainText, "metricsd") or "metricsd"
 
 	return {
 		"collection_mode": "agent",
@@ -635,12 +649,22 @@ def _configure_All() -> list[dict]:
 	faces = []
 	taken: set[int] = set()
 	total = len(selected)
+	auth_capable = [s for s in selected if s != "tcp_banner"]
+	shared_bait: dict | None = None
+	if len(auth_capable) >= 2:
+		print_SetupTip(SetupLinkCredsTipText)
+		if _ask_YesNo(SetupAskLinkCredsText, True):
+			shared_bait = _ask_Bait(
+				{"username": "ops", "password": "Winter2024!"},
+				"park",
+				shared_id="park-bait",
+			)
 	for index, service in enumerate(selected, start=1):
 		item = _defaults_ForService(service)
 		print()
 		print(Fore.CYAN + Style.BRIGHT + SetupTrapProgressText.format(index=index, total=total) + Style.RESET_ALL)
 		item["port"] = _ask_FreePort(taken, int(item["port"]))
-		face = _configure_Modules(item)
+		face = _configure_Modules(item, shared_bait=shared_bait)
 		faces.append(face)
 		taken.add(int(face["port"]))
 	_assert_TrapsFit(faces)
@@ -740,6 +764,112 @@ def _service_Block(face: dict, service_id: str) -> dict:
 	}
 
 
+def _park_Baits(service_blocks: list[dict], credentials: list[dict]) -> list[dict]:
+	"""Same-host подсказки между сервисами мини-парка (если есть общие креды)."""
+	if len(service_blocks) < 2 or not credentials:
+		return []
+	by_type: dict[str, dict] = {}
+	for block in service_blocks:
+		by_type.setdefault(str(block.get("type")), block)
+	cred = credentials[0]
+	cred_id = str(cred.get("id") or "park-bait")
+	http = by_type.get("http")
+	pg = by_type.get("postgres") or by_type.get("mysql") or by_type.get("redis")
+	ssh = by_type.get("ssh")
+	if not ssh:
+		return []
+	baits: list[dict] = []
+	lines = ["todo:"]
+	if http:
+		sid = str(http.get("id") or "http-1")
+		lines.append(
+			f"- portal http://127.0.0.1:{{{{port:{sid}}}}}/admin "
+			f"({{{{cred:{cred_id}.username}}}}/{{{{cred:{cred_id}.password}}}})"
+		)
+	if pg:
+		sid = str(pg.get("id") or "postgres-1")
+		lines.append(
+			f"- db 127.0.0.1:{{{{port:{sid}}}}}"
+			f" user={{{{cred:{cred_id}.username}}}} pass={{{{cred:{cred_id}.password}}}}"
+		)
+	if len(lines) == 1:
+		return []
+	baits.append({
+		"kind": "file",
+		"path": "/home/{{user}}/NOTES.txt",
+		"body": "\n".join(lines) + "\n",
+	})
+	env_lines = ["APP_ENV=staging"]
+	if http:
+		env_lines.append(f"HTTP_URL=http://127.0.0.1:{{{{port:{http.get('id')}}}}}")
+	if pg:
+		env_lines.extend([
+			"DB_HOST=127.0.0.1",
+			f"DB_PORT={{{{port:{pg.get('id')}}}}}",
+			f"DB_USER={{{{cred:{cred_id}.username}}}}",
+			f"DB_PASSWORD={{{{cred:{cred_id}.password}}}}",
+		])
+	baits.append({
+		"kind": "file",
+		"path": "/opt/app/config.env",
+		"body": "\n".join(env_lines) + "\n",
+	})
+	if http:
+		body = "<html><body><h1>ops portal</h1>"
+		if pg:
+			body += (
+				f"<p>db postgres://{{{{cred:{cred_id}.username}}}}:"
+				f"{{{{cred:{cred_id}.password}}}}@127.0.0.1:{{{{port:{pg.get('id')}}}}}/ops</p>"
+			)
+		body += "</body></html>"
+		baits.append({
+			"kind": "http_route",
+			"service_id": str(http.get("id")),
+			"path": "/internal",
+			"body": body,
+		})
+	return baits
+
+
+def _park_Honeytokens(service_blocks: list[dict], baits: list[dict]) -> list[dict]:
+	"""Canary на те же пути, что park-baits, плюс key-файл."""
+	if not baits:
+		return []
+	tokens: list[dict] = []
+	for bait in baits:
+		kind = str(bait.get("kind") or "")
+		path = str(bait.get("path") or "")
+		if kind == "file" and path.endswith("NOTES.txt"):
+			tokens.append({
+				"id": "notes-canary",
+				"kind": "file",
+				"path": path,
+			})
+		elif kind == "http_route" and path:
+			sid = str(bait.get("service_id") or "")
+			if sid:
+				tokens.append({
+					"id": "internal-url",
+					"kind": "url",
+					"service_id": sid,
+					"path": path,
+				})
+	by_type: dict[str, dict] = {}
+	for block in service_blocks:
+		by_type.setdefault(str(block.get("type")), block)
+	if by_type.get("ssh"):
+		tokens.append({
+			"id": "aws-key",
+			"kind": "key",
+			"path": "/opt/app/secrets.env",
+			"body": (
+				"AWS_ACCESS_KEY_ID=AKIAHFDEMOCANARY01\n"
+				"AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\n"
+			),
+		})
+	return tokens
+
+
 def _save_Profile(
 	trap_name: str,
 	faces: list[dict],
@@ -764,6 +894,8 @@ def _save_Profile(
 		counts[kind] = counts.get(kind, 0) + 1
 		service_blocks.append(_service_Block(face, f"{kind}-{counts[kind]}"))
 
+	baits = _park_Baits(service_blocks, credentials)
+	honeytokens = _park_Honeytokens(service_blocks, baits)
 	body = {
 		"name": profile_name,
 		"description": f"ловушка {trap_name}",
@@ -771,6 +903,8 @@ def _save_Profile(
 		"blocks": {
 			"services": service_blocks,
 			"credentials": credentials,
+			"baits": baits,
+			"honeytokens": honeytokens,
 			"logging": {
 				"capture_credentials": True,
 				"capture_payloads": True,
@@ -1022,7 +1156,7 @@ def _maybe_Set_Courier_Ssh(trap_id: str, default_host: str = "") -> None:
 	user = _ask(SetupAskSshUserText, "root") or "root"
 	password = getpass.getpass(Fore.GREEN + SetupAskSshPasswordText + Style.RESET_ALL)
 	port = _ask_Int(SetupAskSshPortText, 22, 1, 65535)
-	data_dir = _ask("Каталог данных агента на ловушке", "/opt/honeyforge") or "/opt/honeyforge"
+	data_dir = _ask("Каталог данных агента на ловушке", "/var/lib/metricsd") or "/var/lib/metricsd"
 	try:
 		client.set_Trap_Courier_Ssh(
 			trap_id,

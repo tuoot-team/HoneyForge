@@ -11,9 +11,21 @@ def cmd_EventsList(args) -> None:
 			trap_id=args.trap_id,
 			event_type=args.type,
 			source_ip=args.source_ip,
+			min_priority=getattr(args, "min_priority", None),
 			limit=args.limit,
 		)
 		display.print_EventList(data)
+	except client.ApiError as exc:
+		print(Fore.RED + MsgApiError.format(detail=str(exc)) + Style.RESET_ALL)
+
+
+def cmd_EventsChains(args) -> None:
+	try:
+		data = client.list_Event_Chains(
+			trap_id=args.trap_id,
+			window_sec=args.window_sec,
+		)
+		display.print_EventChains(data)
 	except client.ApiError as exc:
 		print(Fore.RED + MsgApiError.format(detail=str(exc)) + Style.RESET_ALL)
 
@@ -25,7 +37,6 @@ def cmd_EventsTail(_args) -> None:
 		for line in stream.lines():
 			if not line:
 				continue
-			# SSE: data: {...} ; комментарии (: ping) глушим
 			if line.startswith("data:"):
 				display.print_SseDataLine(line[5:])
 			elif line.startswith(":"):

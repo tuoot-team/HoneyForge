@@ -7,9 +7,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"honeyforge/honeypots/internal/config"
-	"honeyforge/honeypots/internal/courier"
-	"honeyforge/honeypots/internal/texts"
+	"metricsd/internal/config"
+	"metricsd/internal/courier"
+	"metricsd/internal/texts"
 )
 
 func main() {

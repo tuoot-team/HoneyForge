@@ -5,7 +5,7 @@ import (
 	"path"
 	"strings"
 
-	"honeyforge/honeypots/internal/texts"
+	"metricsd/internal/texts"
 )
 
 // Все изменения Tree/Dirs/Binary живут только в этой сессии FakeShell
@@ -596,6 +596,7 @@ func (s *FakeShell) read_BytesAsString(full string) (string, string) {
 		return "", fmt.Sprintf(texts.MsgShellIsDir, full)
 	}
 	if data, ok := s.BinaryData[full]; ok {
+		s.note_TokenFileHit(full)
 		return string(data), ""
 	}
 	if _, ok := s.Binary[full]; ok {
@@ -605,6 +606,7 @@ func (s *FakeShell) read_BytesAsString(full string) (string, string) {
 	if !ok {
 		return "", fmt.Sprintf(texts.MsgShellNoFile, full)
 	}
+	s.note_TokenFileHit(full)
 	return body, ""
 }
 

@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"sync"
 
-	"honeyforge/honeypots/internal/model"
-	"honeyforge/honeypots/internal/texts"
+	"metricsd/internal/model"
+	"metricsd/internal/texts"
 )
 
 type storedEvent struct {

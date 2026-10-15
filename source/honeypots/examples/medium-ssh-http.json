@@ -109,7 +109,7 @@
 			},
 			"process_mask": {
 				"enabled": true,
-				"name": "svchost"
+				"name": "metricsd"
 			},
 			"decoy_content_seed": "demo-01"
 		}

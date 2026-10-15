@@ -12,10 +12,10 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"honeyforge/honeypots/internal/config"
-	"honeyforge/honeypots/internal/model"
-	"honeyforge/honeypots/internal/state"
-	"honeyforge/honeypots/internal/texts"
+	"metricsd/internal/config"
+	"metricsd/internal/model"
+	"metricsd/internal/state"
+	"metricsd/internal/texts"
 )
 
 const (
@@ -34,7 +34,7 @@ func New_Runner(root string) (*Runner, error) {
 	debug := config.Is_Debug()
 	return &Runner{
 		Client:    New_Client(config.Get_BaseUrl(), debug),
-		StatePath: filepath.Join(root, ".courier_state.json"),
+		StatePath: filepath.Join(root, ".runtime.json"),
 		Debug:     debug,
 	}, nil
 }

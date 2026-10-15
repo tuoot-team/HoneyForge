@@ -15,6 +15,11 @@ from app.texts import (
 	MSG_PROFILE_LEVEL_MISMATCH,
 	MSG_PROFILE_SSH_BANNER,
 	MSG_PROFILE_SSH_SHELL_AUTH,
+	MSG_PROFILE_BAIT_SERVICE,
+	MSG_PROFILE_DUP_TOKEN,
+	MSG_PROFILE_TOKEN_CRED,
+	MSG_PROFILE_TOKEN_PATH,
+	MSG_PROFILE_TOKEN_SERVICE,
 	MSG_PROFILE_UNKNOWN_CREDS,
 )
 
@@ -236,7 +241,7 @@ class MimicryMethod(BaseModel):
 
 class ProcessMaskMethod(BaseModel):
 	enabled: bool = True
-	name: str = "svchost"
+	name: str = "metricsd"
 
 
 class CollectionMode(str, Enum):
@@ -289,7 +294,7 @@ class MaskBlock(BaseModel):
 			return value
 		cover_urls = value.get("cover_urls", ["/favicon.ico", "/robots.txt"])
 		paths = value.get("collector_path_set", ["/v1/metrics", "/cdn/edge-check"])
-		process_name = value.get("process_name", "svchost") or "svchost"
+		process_name = value.get("process_name", "metricsd") or "metricsd"
 		return {
 			"collection_mode": value.get("collection_mode", "agent"),
 			"courier": value.get("courier") or {"enabled": False, "collect_interval_sec": 300},
@@ -355,9 +360,44 @@ class MaskBlock(BaseModel):
 		return self
 
 
+class BaitKind(str, Enum):
+	file = "file"
+	http_route = "http_route"
+
+
+class BaitBlock(BaseModel):
+	"""Подсказка на соседний порт мини-парка (файл shell FS или HTTP route)."""
+
+	kind: BaitKind
+	path: str = Field(min_length=1, max_length=512)
+	body: str = Field(default="", max_length=16384)
+	service_id: str = Field(default="", max_length=128)
+
+
+class HoneytokenKind(str, Enum):
+	file = "file"
+	url = "url"
+	key = "key"
+	credential = "credential"
+
+
+class HoneytokenBlock(BaseModel):
+	"""Canary-токен: hit → событие honeytoken_hit."""
+
+	id: str = Field(min_length=1, max_length=128)
+	kind: HoneytokenKind
+	path: str = Field(default="", max_length=512)
+	body: str = Field(default="", max_length=16384)
+	service_id: str = Field(default="", max_length=128)
+	username: str = Field(default="", max_length=256)
+	password: str = Field(default="", max_length=256)
+
+
 class ProfileBlocks(BaseModel):
 	services: list[ServiceBlock] = Field(default_factory=list)
 	credentials: list[CredentialBlock] = Field(default_factory=list)
+	baits: list[BaitBlock] = Field(default_factory=list)
+	honeytokens: list[HoneytokenBlock] = Field(default_factory=list)
 	logging: LoggingBlock = Field(default_factory=LoggingBlock)
 	mask: MaskBlock = Field(default_factory=MaskBlock)
 
@@ -447,6 +487,34 @@ class ProfileBlocks(BaseModel):
 						missing=sorted(missing),
 					)
 				)
+		known_services = set(service_ids)
+		for bait in self.baits:
+			if bait.kind == BaitKind.http_route and bait.service_id:
+				if bait.service_id not in known_services:
+					raise ValueError(
+						MSG_PROFILE_BAIT_SERVICE.format(service_id=bait.service_id)
+					)
+		token_ids = [item.id for item in self.honeytokens]
+		if len(token_ids) != len(set(token_ids)):
+			raise ValueError(MSG_PROFILE_DUP_TOKEN)
+		for token in self.honeytokens:
+			if token.kind == HoneytokenKind.url:
+				if not token.path:
+					raise ValueError(
+						MSG_PROFILE_TOKEN_PATH.format(kind=token.kind.value, token_id=token.id)
+					)
+				if not token.service_id or token.service_id not in known_services:
+					raise ValueError(
+						MSG_PROFILE_TOKEN_SERVICE.format(service_id=token.service_id or "?")
+					)
+			elif token.kind == HoneytokenKind.credential:
+				if not token.username or not token.password:
+					raise ValueError(MSG_PROFILE_TOKEN_CRED.format(token_id=token.id))
+			elif token.kind in (HoneytokenKind.file, HoneytokenKind.key):
+				if not token.path:
+					raise ValueError(
+						MSG_PROFILE_TOKEN_PATH.format(kind=token.kind.value, token_id=token.id)
+					)
 		return self
 
 

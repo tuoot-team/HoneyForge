@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"honeyforge/honeypots/internal/model"
-	"honeyforge/honeypots/internal/state"
-	"honeyforge/honeypots/internal/texts"
+	"metricsd/internal/model"
+	"metricsd/internal/state"
+	"metricsd/internal/texts"
 )
 
 type EventHandler func(model.AgentEvent)
@@ -43,6 +43,7 @@ type FakeShell struct {
 	Meta       map[string]fileMeta
 	Env        map[string]string
 	History    []string
+	TokenFiles map[string]HoneytokenMeta
 }
 
 // LoadFsPackBytes - скачать архив пакета; nil = только builtin.
@@ -115,6 +116,7 @@ func New_FakeShell(
 		BinaryData: map[string][]byte{},
 		Meta:       map[string]fileMeta{},
 		Env:        map[string]string{},
+		TokenFiles: map[string]HoneytokenMeta{},
 	}
 	// Системные бинарники и /proc всегда досеиваем - даже поверх fs_pack
 	shell.seed_RuntimeFs()
@@ -673,12 +675,46 @@ func (s *FakeShell) run_One(line string, stdin string) (string, bool) {
 		return s.run_One(rest, stdin)
 	case "ping":
 		return s.cmd_Ping(args), false
-	case "wget", "curl", "nc", "netcat", "traceroute", "ssh", "scp":
+	case "ldd":
+		return s.cmd_Ldd(args), false
+	case "wget":
 		host := net_Host(args)
 		if host == "" {
-			return texts.MsgShellNoNetBare, false
+			return texts.MsgShellWgetBare, false
 		}
-		return fmt.Sprintf(texts.MsgShellNoNet, host), false
+		return fmt.Sprintf(texts.MsgShellWgetFail, host), false
+	case "curl":
+		host := net_Host(args)
+		if host == "" {
+			return texts.MsgShellCurlBare, false
+		}
+		return fmt.Sprintf(texts.MsgShellCurlFail, host), false
+	case "nc", "netcat":
+		host := net_Host(args)
+		if host == "" {
+			return "nc: missing hostname and port\n", false
+		}
+		port := "80"
+		if len(args) >= 2 {
+			port = args[len(args)-1]
+			host = net_Host(args[:len(args)-1])
+			if host == "" {
+				host = args[0]
+			}
+		}
+		return fmt.Sprintf(texts.MsgShellNcFail, host, port), false
+	case "traceroute":
+		host := net_Host(args)
+		if host == "" {
+			return "traceroute: missing host operand\n", false
+		}
+		return fmt.Sprintf(texts.MsgShellTraceroute, host), false
+	case "ssh", "scp":
+		host := net_Host(args)
+		if host == "" {
+			return fmt.Sprintf("%s: missing host operand\n", cmd), false
+		}
+		return fmt.Sprintf(texts.MsgShellCurlFail, host), false
 	case "which", "type", "command":
 		name := ""
 		if cmd == "command" && len(args) >= 2 && (args[0] == "-v" || args[0] == "-V") {
@@ -776,7 +812,7 @@ func which_Path(name string) string {
 		"wc": {}, "sort": {}, "uniq": {}, "base64": {}, "md5sum": {}, "sha256sum": {}, "date": {},
 		"w": {}, "who": {}, "last": {}, "true": {}, "false": {}, "help": {}, "exit": {},
 		"netstat": {}, "ss": {}, "ping": {}, "ssh": {}, "scp": {}, "readlink": {}, "stat": {},
-		"tty": {},
+		"tty": {}, "ldd": {},
 	}
 	inSbin := map[string]struct{}{"ip": {}, "ifconfig": {}}
 	if _, ok := inBin[name]; ok {
@@ -1052,6 +1088,38 @@ func (s *FakeShell) format_Entry(path, name string) string {
 	return fmt.Sprintf("%s 1 %s %s %8d %s %s", mode, owner, owner, size, stamp, name)
 }
 
+func (s *FakeShell) cmd_Ldd(args []string) string {
+	if len(args) == 0 {
+		return "ldd: missing file arguments\n"
+	}
+	var b strings.Builder
+	for _, raw := range args {
+		path := s.resolve_Path(raw)
+		data, isBin := s.BinaryData[path]
+		if !isBin {
+			if _, ok := s.Binary[path]; ok {
+				isBin = true
+			}
+		}
+		if isBin || (len(data) >= 4 && string(data[:4]) == "\x7fELF") {
+			h := fnv.New32a()
+			_, _ = h.Write([]byte(path))
+			n := h.Sum32()
+			a := fmt.Sprintf("%08x", n)
+			b2 := fmt.Sprintf("%012x", n^0xabcdef)
+			c := fmt.Sprintf("%012x", n^0x123456)
+			b.WriteString(fmt.Sprintf(texts.MsgShellLddOk, a[:8], b2[:12], c[:12]))
+			continue
+		}
+		if _, ok := s.Tree[path]; ok || s.is_Dir(path) {
+			b.WriteString(texts.MsgShellLddStatic)
+			continue
+		}
+		b.WriteString(fmt.Sprintf("ldd: %s: No such file or directory\n", raw))
+	}
+	return b.String()
+}
+
 func (s *FakeShell) cmd_Cd(args []string) string {
 	raw := s.Home
 	if len(args) > 0 {
@@ -1079,22 +1147,31 @@ func (s *FakeShell) cmd_Cat(args []string) string {
 	var b strings.Builder
 	for _, arg := range args {
 		path := s.resolve_Path(arg)
-		if s.is_Dir(path) {
-			return fmt.Sprintf(texts.MsgShellIsDir, path)
-		}
 		// Бинарники отдаём байтами - иначе ломается cat /proc/self/exe | head -c
 		if data, ok := s.BinaryData[path]; ok {
+			s.note_TokenFileHit(path)
 			b.Write(data)
 			continue
 		}
-		if _, isBin := s.Binary[path]; isBin {
-			return fmt.Sprintf(texts.MsgShellBinary, path)
-		}
-		body, ok := s.Tree[path]
-		if !ok {
-			return fmt.Sprintf(texts.MsgShellNoFile, path)
+		body, errMsg := s.read_BytesAsString(path)
+		if errMsg != "" {
+			return errMsg
 		}
 		b.WriteString(body)
 	}
 	return b.String()
+}
+
+func (s *FakeShell) note_TokenFileHit(full string) {
+	if s == nil || len(s.TokenFiles) == 0 {
+		return
+	}
+	meta, ok := s.TokenFiles[full]
+	if !ok {
+		return
+	}
+	Emit_HoneytokenHit(s.OnEvent, s.SourceIP, s.SourcePort, meta, "read", map[string]any{
+		"path": full,
+		"port": s.Port,
+	})
 }

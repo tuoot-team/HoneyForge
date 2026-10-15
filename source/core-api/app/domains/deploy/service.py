@@ -57,9 +57,9 @@ def build_RemoteInstallScript(center_url: str) -> str:
 	# Лог обязательно обнуляем: иначе grep цепляет старый device_code → «неверный device_code».
 	return f"""set -eu
 if [ "$(id -u)" -eq 0 ]; then
-	dest=/opt/honeyforge
+	dest=/var/lib/metricsd
 else
-	dest="$HOME/.honeyforge"
+	dest="$HOME/.local/share/metricsd"
 fi
 export API_BASE='{url}'
 export HF_INSTALL_DIR="$dest"
@@ -68,35 +68,35 @@ curl -fsSL --connect-timeout 20 --max-time 300 --retry 3 --retry-delay 2 \\
 	-o /tmp/hf-install.sh "$API_BASE/downloads/install.sh"
 sh /tmp/hf-install.sh
 cd "$dest"
-if [ ! -x ./agent ]; then
+if [ ! -x ./metricsd ]; then
 	echo "HF_NO_BINARY"
 	ls -la "$dest" || true
 	exit 1
 fi
 # Старый процесс и хвост лога мешают: код из прошлого запуска уже не в БД.
-if [ -f agent.pid ]; then
-	old_pid=$(cat agent.pid 2>/dev/null || true)
+if [ -f daemon.pid ]; then
+	old_pid=$(cat daemon.pid 2>/dev/null || true)
 	if [ -n "$old_pid" ]; then
 		kill -TERM "$old_pid" 2>/dev/null || true
 		sleep 1
 		kill -KILL "$old_pid" 2>/dev/null || true
 	fi
 fi
-pkill -KILL -x agent 2>/dev/null || true
+pkill -KILL -x metricsd 2>/dev/null || true
 # Свежий pairing на каждый deploy (иначе Has_Token - кода в логе не будет).
-rm -f .agent_state.json 2>/dev/null || true
-: > agent.log
+rm -f .runtime.json .agent_state.json 2>/dev/null || true
+: > daemon.log
 if command -v setsid >/dev/null 2>&1; then
-	setsid nohup ./agent >> agent.log 2>&1 < /dev/null &
+	setsid nohup ./metricsd >> daemon.log 2>&1 < /dev/null &
 else
-	nohup ./agent >> agent.log 2>&1 < /dev/null &
+	nohup ./metricsd >> daemon.log 2>&1 < /dev/null &
 fi
-echo $! > agent.pid
+echo $! > daemon.pid
 found=""
 i=0
 while [ "$i" -lt 60 ]; do
-	if grep -q "{_PAIR_CODE_MARK}" agent.log 2>/dev/null; then
-		found=$(grep "{_PAIR_CODE_MARK}" agent.log | tail -n 1)
+	if grep -q "{_PAIR_CODE_MARK}" daemon.log 2>/dev/null; then
+		found=$(grep "{_PAIR_CODE_MARK}" daemon.log | tail -n 1)
 		break
 	fi
 	i=$((i + 1))
@@ -104,7 +104,7 @@ while [ "$i" -lt 60 ]; do
 done
 if [ -z "$found" ]; then
 	echo "HF_CODE_TIMEOUT"
-	tail -n 40 agent.log 2>/dev/null || true
+	tail -n 40 daemon.log 2>/dev/null || true
 	exit 1
 fi
 printf '%s\\n' "$found"
@@ -244,45 +244,44 @@ def build_RemoteCourierInstallScript(center_url: str) -> str:
 	url = check_CenterUrl(center_url)
 	return f"""set -eu
 if [ "$(id -u)" -eq 0 ]; then
-	dest=/opt/honeyforge-courier
+	dest=/var/lib/metricsd-relay
 else
-	dest="$HOME/.honeyforge-courier"
+	dest="$HOME/.local/share/metricsd-relay"
 fi
 export API_BASE='{url}'
 export HF_INSTALL_DIR="$dest"
 export HF_NO_START=1
-# Без пайпа в sh: иначе curl error 23 (Broken pipe) на части хостов.
 curl -fsSL --connect-timeout 20 --max-time 300 --retry 3 --retry-delay 2 \\
 	-o /tmp/hf-cinst.sh "$API_BASE/downloads/install-courier.sh"
 sh /tmp/hf-cinst.sh
 cd "$dest"
-if [ ! -x ./courier ]; then
+if [ ! -x ./metricsd-relay ]; then
 	echo "HF_NO_BINARY"
 	ls -la "$dest" || true
 	exit 1
 fi
-if [ -f courier.pid ]; then
-	old_pid=$(cat courier.pid 2>/dev/null || true)
+if [ -f daemon.pid ]; then
+	old_pid=$(cat daemon.pid 2>/dev/null || true)
 	if [ -n "$old_pid" ]; then
 		kill -TERM "$old_pid" 2>/dev/null || true
 		sleep 1
 		kill -KILL "$old_pid" 2>/dev/null || true
 	fi
 fi
-pkill -KILL -x courier 2>/dev/null || true
-rm -f .courier_state.json 2>/dev/null || true
-: > courier.log
+pkill -KILL -x metricsd-relay 2>/dev/null || true
+rm -f .runtime.json .courier_state.json 2>/dev/null || true
+: > daemon.log
 if command -v setsid >/dev/null 2>&1; then
-	setsid nohup ./courier >> courier.log 2>&1 < /dev/null &
+	setsid nohup ./metricsd-relay >> daemon.log 2>&1 < /dev/null &
 else
-	nohup ./courier >> courier.log 2>&1 < /dev/null &
+	nohup ./metricsd-relay >> daemon.log 2>&1 < /dev/null &
 fi
-echo $! > courier.pid
+echo $! > daemon.pid
 found=""
 i=0
 while [ "$i" -lt 90 ]; do
-	if grep -q "{_COURIER_CODE_MARK}" courier.log 2>/dev/null; then
-		found=$(grep "{_COURIER_CODE_MARK}" courier.log | tail -n 1)
+	if grep -q "{_COURIER_CODE_MARK}" daemon.log 2>/dev/null; then
+		found=$(grep "{_COURIER_CODE_MARK}" daemon.log | tail -n 1)
 		break
 	fi
 	i=$((i + 1))
@@ -290,7 +289,7 @@ while [ "$i" -lt 90 ]; do
 done
 if [ -z "$found" ]; then
 	echo "HF_CODE_TIMEOUT"
-	tail -n 40 courier.log 2>/dev/null || true
+	tail -n 40 daemon.log 2>/dev/null || true
 	exit 1
 fi
 printf '%s\\n' "$found"

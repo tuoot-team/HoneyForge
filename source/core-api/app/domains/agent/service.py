@@ -79,6 +79,8 @@ def post_Events(db: Session, trap: models.Trap, body: AgentEventsBatchIn) -> dic
 		)
 		db.add(row)
 		db.flush()
+		from app.domains.events.service import event_Priority
+
 		event_sse_hub.publish_Event(
 			{
 				"id": row.id,
@@ -88,6 +90,7 @@ def post_Events(db: Session, trap: models.Trap, body: AgentEventsBatchIn) -> dic
 				"source_port": row.source_port,
 				"occurred_at": row.occurred_at.isoformat() if row.occurred_at else None,
 				"payload": row.payload,
+				"priority": event_Priority(row.event_type, row.payload or {}),
 			}
 		)
 		saved += 1

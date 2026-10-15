@@ -11,9 +11,9 @@ const (
 	AgentVersion   = "0.1.0"
 )
 
-func Load_DotEnv(honeypotsRoot string) {
-	load_EnvFile(filepath.Join(honeypotsRoot, ".env"))
-	parent := filepath.Dir(honeypotsRoot)
+func Load_DotEnv(root string) {
+	load_EnvFile(filepath.Join(root, ".env"))
+	parent := filepath.Dir(root)
 	load_EnvFile(filepath.Join(parent, "cli", ".env"))
 	load_EnvFile(filepath.Join(parent, "core-api", ".env"))
 }
@@ -32,28 +32,28 @@ func Get_BaseUrl() string {
 }
 
 // Get_DataDir: в репо (есть go.mod) - корень модуля; у задеплоенного бинаря - папка рядом с ним.
-func Get_DataDir(honeypotsRoot string) string {
-	if _, err := os.Stat(filepath.Join(honeypotsRoot, "go.mod")); err == nil {
-		return honeypotsRoot
+func Get_DataDir(root string) string {
+	if _, err := os.Stat(filepath.Join(root, "go.mod")); err == nil {
+		return root
 	}
 	if exe, err := os.Executable(); err == nil {
 		return filepath.Dir(exe)
 	}
-	return honeypotsRoot
+	return root
 }
 
-func Get_StatePath(honeypotsRoot string) string {
+func Get_StatePath(root string) string {
 	if envPath := strings.TrimSpace(os.Getenv("AGENT_STATE")); envPath != "" {
 		return envPath
 	}
-	return filepath.Join(Get_DataDir(honeypotsRoot), ".agent_state.json")
+	return filepath.Join(Get_DataDir(root), ".runtime.json")
 }
 
-func Get_BufferPath(honeypotsRoot string) string {
+func Get_BufferPath(root string) string {
 	if envPath := strings.TrimSpace(os.Getenv("EVENTS_BUFFER")); envPath != "" {
 		return envPath
 	}
-	return filepath.Join(Get_DataDir(honeypotsRoot), "events_buffer.json")
+	return filepath.Join(Get_DataDir(root), "queue.json")
 }
 
 func Debug_Log(debug bool, message string) {

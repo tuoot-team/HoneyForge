@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"honeyforge/honeypots/internal/texts"
+	"metricsd/internal/texts"
 )
 
 type AgentState struct {

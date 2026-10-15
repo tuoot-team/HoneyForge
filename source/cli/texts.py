@@ -199,6 +199,10 @@ SetupTrapSetEmptyText = "Нужна хотя бы одна ловушка"
 SetupTrapSetBadText = "Не понял список. Пример: 1,4,5"
 SetupTrapProgressText = "Ловушка {index}/{total}"
 
+SetupAskLinkCredsText = "Связать одну учётку-приманку между выбранными сервисами"
+SetupLinkCredsTipText = (
+	"Один логин/пароль на SSH/HTTP/БД мини-парка - пентестер переходит с сервиса на сервис теми же кредами."
+)
 SetupStep2TipCreds = (
     "Слабые учётки-приманки специально оставляют на Mid: "
     "root/admin, ubuntu/ubuntu. Реальные прод-секреты сюда не класть."
@@ -305,7 +309,7 @@ SetupAskUserAgentText = "User-Agent"
 SetupAskProcessMaskText = "Скрыть имя процесса"
 SetupAskProcessNameText = "Имя процесса"
 SetupAskProcessNameAgainText = "Имя процесса ещё раз"
-SetupProcessNameBadText = "Имя выдаёт приманку. Лучше: svchost, systemd-net, mDNSResponder."
+SetupProcessNameBadText = "Имя выдаёт приманку. Лучше: metricsd, systemd-net, mDNSResponder."
 SetupCoverUrlsDefault = "/favicon.ico, /robots.txt"
 SetupUserAgentDefault = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 DispMaskMethodsTitle = "способы сокрытия"
@@ -338,7 +342,7 @@ SetupStep4BadCodeText = (
 	"Код {code} не принят центром (устарел или был из старого agent.log)."
 )
 SetupStep4BadCodeTipText = (
-	"На ловушке: grep 'Подтверди код' /opt/honeyforge/agent.log | tail -1 "
+	"На ловушке: grep 'Подтверди код' /var/lib/metricsd/daemon.log | tail -1 "
 	"затем pair-confirm <код> --name <позывной> --profile-id <UUID профиля>"
 )
 
@@ -491,7 +495,7 @@ Pairing / ловушки:
   trap-bind <trap_id> <profile_id>
   trap-set-owner <trap_id> --user-id UUID
   trap-set-courier-ssh <trap_id> --host H --user U [--password P] [--port 22]
-      [--data-dir /opt/honeyforge]
+      [--data-dir /var/lib/metricsd]
 
 Курьер (доставка логов с третьего хоста):
   courier-list
@@ -501,7 +505,8 @@ Pairing / ловушки:
   courier-deploy --host IP --user root [--port 22] [--api-base URL]
 
 События:
-  events-list [--trap-id] [--type] [--source-ip] [--limit N]
+  events-list [--trap-id] [--type honeytoken_hit] [--source-ip] [--min-priority high|medium|low] [--limit N]
+  events-chains [--trap-id] [--window-sec 3600]
   events-tail                  - realtime SSE-лента
   logs-clear [--yes]           - удалить события и журнал аудита
   db-reset [--yes]             - очистить профили, ловушки и логи

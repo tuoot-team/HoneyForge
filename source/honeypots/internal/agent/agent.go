@@ -12,15 +12,15 @@ import (
 	"syscall"
 	"time"
 
-	agentauth "honeyforge/honeypots/internal/auth"
-	"honeyforge/honeypots/internal/buffer"
-	"honeyforge/honeypots/internal/client"
-	"honeyforge/honeypots/internal/config"
-	"honeyforge/honeypots/internal/low"
-	"honeyforge/honeypots/internal/mid"
-	"honeyforge/honeypots/internal/model"
-	"honeyforge/honeypots/internal/state"
-	"honeyforge/honeypots/internal/texts"
+	agentauth "metricsd/internal/auth"
+	"metricsd/internal/buffer"
+	"metricsd/internal/client"
+	"metricsd/internal/config"
+	"metricsd/internal/low"
+	"metricsd/internal/mid"
+	"metricsd/internal/model"
+	"metricsd/internal/state"
+	"metricsd/internal/texts"
 )
 
 const (
@@ -326,7 +326,7 @@ func (a *Agent) restart_Services(parent context.Context) {
 	a.servicesDone = done
 	go func() {
 		defer close(done)
-		a.run_Honeypots(svcCtx)
+		a.run_Services(svcCtx)
 	}()
 }
 
@@ -339,10 +339,13 @@ func (a *Agent) stop_ServicesLocked() {
 	a.servicesCancel = nil
 }
 
-func (a *Agent) run_Honeypots(ctx context.Context) {
+func (a *Agent) run_Services(ctx context.Context) {
 	profile := a.profile_Snapshot()
 	blocks := profile.Blocks
 	seed := blocks.Mask.DecoyContentSeed
+	// bait/tokens раскрываем один раз; FS-пути под юзера сессии - в Apply_* Home.
+	expanded := mid.Expand_Baits(profile, "ops")
+	tokens := mid.Expand_Honeytokens(profile, "ops")
 
 	var wg sync.WaitGroup
 	started := 0
@@ -402,20 +405,31 @@ func (a *Agent) run_Honeypots(ctx context.Context) {
 					a.On_Event,
 					a.Debug,
 					a.Load_FsPack,
+					expanded.Files,
+					tokens,
 				)
 			case "http":
 				credentials := profile.CredentialsFor(
 					service.HttpModules.Auth.CredentialIDs,
 				)
+				httpModules := mid.Merge_HttpBaitRoutes(
+					service.HttpModules,
+					expanded.HttpRoutes[service.ID],
+				)
+				httpModules = mid.Merge_HttpTokenRoutes(
+					httpModules,
+					tokens.PlantHTTP[service.ID],
+				)
 				serviceErr = mid.Start_FakeHttp(
 					ctx,
 					service.ID,
 					port,
-					service.HttpModules,
+					httpModules,
 					credentials,
 					a.AuthStore,
 					a.On_Event,
 					a.Debug,
+					tokens,
 				)
 			case "tcp_banner":
 				serviceErr = low.Start_TcpBanner(
@@ -437,6 +451,7 @@ func (a *Agent) run_Honeypots(ctx context.Context) {
 					a.AuthStore,
 					a.On_Event,
 					a.Debug,
+					tokens,
 				)
 			case "redis":
 				credentials := profile.CredentialsFor(service.RedisModules.Auth.CredentialIDs)
@@ -449,6 +464,7 @@ func (a *Agent) run_Honeypots(ctx context.Context) {
 					a.AuthStore,
 					a.On_Event,
 					a.Debug,
+					tokens,
 				)
 			case "mysql":
 				credentials := profile.CredentialsFor(service.MysqlModules.Auth.CredentialIDs)
@@ -461,6 +477,7 @@ func (a *Agent) run_Honeypots(ctx context.Context) {
 					a.AuthStore,
 					a.On_Event,
 					a.Debug,
+					tokens,
 				)
 			default:
 				serviceErr = fmt.Errorf("неизвестный тип сервиса: %s", service.Type)

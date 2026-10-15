@@ -39,19 +39,20 @@ case "$arch" in
 esac
 
 if [ "$(id -u)" -eq 0 ]; then
-	dest="/opt/honeyforge"
+	dest="/var/lib/metricsd"
 else
-	dest="${HOME}/.honeyforge"
+	dest="${HOME}/.local/share/metricsd"
 fi
 if [ -n "${HF_INSTALL_DIR:-}" ]; then
 	dest="$HF_INSTALL_DIR"
 fi
 mkdir -p "$dest"
 
+# Центр отдаёт /downloads/agent; на диске - нейтральное имя.
 agent_url="${center}/downloads/agent"
-agent_path="${dest}/agent"
+agent_path="${dest}/metricsd"
 echo "${msg_Downloading}${agent_url}"
-	tmp_path="${agent_path}.tmp.$$"
+tmp_path="${agent_path}.tmp.$$"
 if command -v curl >/dev/null 2>&1; then
 	curl -fsSL --connect-timeout 20 --max-time 300 --retry 3 --retry-delay 2 \
 		"$agent_url" -o "$tmp_path"
@@ -63,7 +64,7 @@ else
 fi
 if [ ! -s "$tmp_path" ]; then
 	rm -f "$tmp_path"
-	echo "Пустой бинарь agent - проверь $agent_url" >&2
+	echo "Пустой бинарь - проверь $agent_url" >&2
 	exit 1
 fi
 mv -f "$tmp_path" "$agent_path"

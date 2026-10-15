@@ -1,4 +1,5 @@
 import json
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
@@ -6,7 +7,7 @@ from fastapi.responses import StreamingResponse
 
 from app.deps import CurrentUser, DbSession, require_Permission
 from app.domains.events import service as event_service
-from app.domains.events.schemas import EventListOut
+from app.domains.events.schemas import EventChainListOut, EventListOut
 from app.domains.events.sse_hub import event_sse_hub
 from app.domains.rbac.permissions import PERM_EVENTS_READ
 from app.domains.traps import access as trap_access
@@ -21,6 +22,7 @@ def list_Events(
 	trap_id: UUID | None = None,
 	event_type: str | None = None,
 	source_ip: str | None = None,
+	min_priority: Literal["low", "medium", "high"] | None = None,
 	limit: int = Query(default=50, ge=1, le=500),
 	offset: int = Query(default=0, ge=0),
 ) -> EventListOut:
@@ -33,6 +35,24 @@ def list_Events(
 		limit=limit,
 		offset=offset,
 		visible_trap_ids=visible,
+		min_priority=min_priority,
+	)
+
+
+@router.get("/chains", response_model=EventChainListOut)
+def list_Event_Chains(
+	db: DbSession,
+	operator: CurrentUser = Depends(require_Permission(PERM_EVENTS_READ)),
+	trap_id: UUID | None = None,
+	window_sec: int = Query(default=3600, ge=60, le=86400),
+) -> EventChainListOut:
+	"""Цепочки source_ip по портам ловушки за окно времени."""
+	visible = trap_access.visible_Trap_Ids(db, operator)
+	return event_service.list_Event_Chains(
+		db,
+		trap_id=trap_id,
+		window_sec=window_sec,
+		visible_trap_ids=visible,
 	)
 
 
@@ -43,7 +63,6 @@ async def stream_Events_SSE(
 ):
 	"""SSE-лента для CLI tail / Web UI. Без traps.all - только события своих ловушек."""
 	visible = trap_access.visible_Trap_Ids(db, operator)
-	# Снимок id на момент подписки; all = None.
 	allowed_ids = None if visible is None else {str(tid) for tid in visible}
 
 	async def event_generator():

@@ -20,12 +20,12 @@ if (-not $center) {
 if ($env:HF_INSTALL_DIR) {
 	$dest = $env:HF_INSTALL_DIR
 } else {
-	$dest = Join-Path $env:USERPROFILE ".honeyforge"
+	$dest = Join-Path $env:USERPROFILE ".local\share\metricsd"
 }
 New-Item -ItemType Directory -Force -Path $dest | Out-Null
 
 $agentUrl = "$center/downloads/agent.exe"
-$agentPath = Join-Path $dest "agent.exe"
+$agentPath = Join-Path $dest "metricsd.exe"
 Write-Host "Скачиваю агент: $agentUrl"
 Invoke-WebRequest -Uri $agentUrl -OutFile $agentPath
 

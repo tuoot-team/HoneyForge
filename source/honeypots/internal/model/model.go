@@ -351,9 +351,30 @@ func boolPtr(value bool) *bool {
 	return &value
 }
 
+// BaitBlock - подсказка на соседний сервис мини-парка (файл FS или HTTP route).
+type BaitBlock struct {
+	Kind      string `json:"kind"` // file | http_route
+	Path      string `json:"path"`
+	Body      string `json:"body"`
+	ServiceID string `json:"service_id"`
+}
+
+// HoneytokenBlock - canary; hit → honeytoken_hit.
+type HoneytokenBlock struct {
+	ID        string `json:"id"`
+	Kind      string `json:"kind"` // file | url | key | credential
+	Path      string `json:"path"`
+	Body      string `json:"body"`
+	ServiceID string `json:"service_id"`
+	Username  string `json:"username"`
+	Password  string `json:"password"`
+}
+
 type ProfileBlocks struct {
 	Services    []ServiceBlock    `json:"services"`
 	Credentials []CredentialBlock `json:"credentials"`
+	Baits       []BaitBlock       `json:"baits"`
+	Honeytokens []HoneytokenBlock `json:"honeytokens"`
 	Logging     LoggingBlock      `json:"logging"`
 	Mask        MaskBlock         `json:"mask"`
 }

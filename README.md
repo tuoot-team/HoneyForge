@@ -132,10 +132,10 @@ TLS: в `source/core-api/.env` задайте `TLS_DOMAIN` (и желатель�
 - [x] Low = баннер, Medium = вход / shell / HTTP
 
 ### Фаза 5b - Anti-detect medium (под пентестеров)
-- [ ] Процесс и пути агента без маркеров honeypot/C2; демо-профиль с cover и path_rotation
-- [ ] SSH handshake ближе к OpenSSH (KEX/cipher/MAC), `nmap -sV` не показывает Go / голое 2.0
-- [ ] Согласованность fake shell (uname/os-release/FS), правдоподобные отказы wget/curl/ldd без выхода в сеть
-- [ ] Стоп-критерий: пентест-smoke (nmap, ps, /proc, SSH_CLIENT, strings агента)
+- [x] Процесс и пути агента без маркеров honeypot/C2; демо-профиль с cover и path_rotation
+- [x] SSH handshake ближе к OpenSSH (KEX/cipher/MAC), `nmap -sV` не показывает Go / голое 2.0
+- [x] Согласованность fake shell (uname/os-release/FS), правдоподобные отказы wget/curl/ldd без выхода в сеть
+- [x] Стоп-критерий: пентест-smoke (nmap, ps, /proc, SSH_CLIENT, strings агента)
 
 ### Фаза 5c - Курьер (второй способ сбора логов)
 - [x] Режим `collection_mode=agent|courier`: в courier ловушка не шлёт batch сама
@@ -144,15 +144,19 @@ TLS: в `source/core-api/.env` задайте `TLS_DOMAIN` (и желатель�
 - [x] Стоп-критерий: события в центре без исходящего C2 с ловушки, без дублей и без следа визита курьера
 
 ### Фаза 5d - Mid-honeynet на одном сервере
-- [ ] Не несколько реальных машин, а связка medium-сервисов на одном агенте: общие/связанные креды, bait-файлы и URL на «соседние» порты того же хоста
-- [ ] В профиле набор сервисов как мини-парк (SSH + HTTP + БД) с согласованной легендой и honeytoken-переходами
-- [ ] Корреляция в центре: сессии с одного source IP по разным портам ловушки видны как цепочка
-- [ ] Без netns/VM на этом шаге (настоящий мультихост - зона High 6b)
-- [ ] Стоп-критерий: пентестер с SSH находит указание на веб/БД на том же хосте, заходит туда теми же/связанными кредами, в ленте видна цепочка с высоким приоритетом
+- [x] Не несколько реальных машин, а связка medium-сервисов на одном агенте: общие/связанные креды, bait-файлы и URL на «соседние» порты того же хоста
+- [x] В профиле набор сервисов как мини-парк (SSH + HTTP + БД) с согласованной легендой и honeytoken-переходами
+- [x] Корреляция в центре: сессии с одного source IP по разным портам ловушки видны как цепочка
+- [x] Без netns/VM на этом шаге (настоящий мультихост - зона High 6b)
+- [x] Стоп-критерий: пентестер с SSH находит указание на веб/БД на том же хосте, заходит туда теми же/связанными кредами, в ленте видна цепочка с высоким приоритетом
+
+Пример: `source/honeypots/examples/mid-honeynet.json`. В профиле блок `baits` с плейсхолдерами `{{port:<id>}}` / `{{cred:<id>.username}}`. CLI: `events-list --min-priority high`, `events-chains`.
 
 ### Фаза 6a - Honeytokens
-- [ ] Токены в профиле (файл / URL / ключ / креды), событие `honeytoken_hit`
-- [ ] Раздача через fake FS и HTTP; показ в ленте CLI/web
+- [x] Токены в профиле (файл / URL / ключ / креды), событие `honeytoken_hit`
+- [x] Раздача через fake FS и HTTP; показ в ленте CLI/web
+
+Блок `honeytokens` в профиле (`file` / `url` / `key` / `credential`). Hit → `honeytoken_hit` (priority high). Пример: `source/honeypots/examples/mid-honeynet.json`. CLI: `events-list --type honeytoken_hit --min-priority high`.
 
 ### Фаза 6b - High: VM с пересобранными образами
 - [ ] Полноценные VM (KVM/libvirt) на серверах-ловушках, не контейнер-заглушка

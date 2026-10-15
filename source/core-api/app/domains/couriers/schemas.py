@@ -63,7 +63,7 @@ class TrapCourierSshIn(BaseModel):
 	user: str = Field(default="root", min_length=1, max_length=64)
 	password: str | None = None
 	private_key: str | None = None
-	remote_data_dir: str = Field(default="/opt/honeyforge", min_length=1, max_length=512)
+	remote_data_dir: str = Field(default="/var/lib/metricsd", min_length=1, max_length=512)
 
 	@model_validator(mode="after")
 	def require_Auth(self) -> "TrapCourierSshIn":

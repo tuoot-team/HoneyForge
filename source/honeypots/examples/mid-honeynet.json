@@ -1,0 +1,179 @@
+{
+	"name": "mid-honeynet",
+	"description": "Мини-парк на одном хосте: SSH + HTTP + Postgres, общие креды и bait на соседние порты",
+	"interaction_level": "medium",
+	"blocks": {
+		"credentials": [
+			{
+				"id": "ops-main",
+				"username": "ops",
+				"password": "Winter2024!",
+				"note": "Общая приманка SSH / HTTP / Postgres"
+			}
+		],
+		"services": [
+			{
+				"type": "ssh",
+				"id": "ssh-main",
+				"port": 22,
+				"enabled": true,
+				"modules": {
+					"banner": {
+						"version": "SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.6"
+					},
+					"auth": {
+						"mode": "second_attempt_sticky",
+						"credential_ids": ["ops-main"],
+						"delay_ms_min": 200,
+						"delay_ms_max": 800,
+						"sticky_ttl_hours": 72
+					},
+					"shell": {
+						"enabled": true,
+						"fs_pack": "ubuntu-22.04",
+						"max_session_sec": 600
+					}
+				}
+			},
+			{
+				"type": "http",
+				"id": "http-main",
+				"port": 8080,
+				"enabled": true,
+				"modules": {
+					"personality": {
+						"server": "nginx/1.24.0",
+						"title": "Internal Portal"
+					},
+					"auth": {
+						"enabled": true,
+						"mode": "allow_listed",
+						"credential_ids": ["ops-main"],
+						"path": "/admin",
+						"realm": "ops"
+					},
+					"routes": {
+						"routes": [
+							{
+								"path": "/",
+								"methods": ["GET"],
+								"status": 200,
+								"content_type": "text/html; charset=utf-8",
+								"body": "<html><body><h1>ops portal</h1><p><a href=\"/admin\">admin</a></p><p>db: 127.0.0.1:5432 user ops</p></body></html>"
+							},
+							{
+								"path": "/admin",
+								"methods": ["GET"],
+								"status": 200,
+								"content_type": "text/html; charset=utf-8",
+								"body": "<html><body>ops admin console</body></html>"
+							}
+						],
+						"default_status": 404,
+						"default_body": "not found"
+					}
+				}
+			},
+			{
+				"type": "postgres",
+				"id": "pg-main",
+				"port": 5432,
+				"enabled": true,
+				"modules": {
+					"banner": {
+						"version": "14.10 (Ubuntu 14.10-0ubuntu0.22.04.1)"
+					},
+					"auth": {
+						"mode": "allow_listed",
+						"credential_ids": ["ops-main"],
+						"delay_ms_min": 100,
+						"delay_ms_max": 400
+					},
+					"session": {
+						"enabled": true,
+						"max_session_sec": 300
+					}
+				}
+			}
+		],
+		"baits": [
+			{
+				"kind": "file",
+				"path": "/home/{{user}}/NOTES.txt",
+				"body": "todo:\n- check internal portal http://127.0.0.1:{{port:http-main}}/admin\n- postgres at 127.0.0.1:{{port:pg-main}} user={{cred:ops-main.username}} pass={{cred:ops-main.password}}\n"
+			},
+			{
+				"kind": "file",
+				"path": "/home/{{user}}/.bash_history",
+				"body": "curl -u {{cred:ops-main.username}}:{{cred:ops-main.password}} http://127.0.0.1:{{port:http-main}}/admin\npsql -h 127.0.0.1 -p {{port:pg-main}} -U {{cred:ops-main.username}}\n"
+			},
+			{
+				"kind": "file",
+				"path": "/opt/app/config.env",
+				"body": "APP_ENV=staging\nHTTP_URL=http://127.0.0.1:{{port:http-main}}\nDB_HOST=127.0.0.1\nDB_PORT={{port:pg-main}}\nDB_USER={{cred:ops-main.username}}\nDB_PASSWORD={{cred:ops-main.password}}\n"
+			},
+			{
+				"kind": "http_route",
+				"service_id": "http-main",
+				"path": "/internal",
+				"body": "<html><body><h1>internal</h1><p>postgres://{{cred:ops-main.username}}:{{cred:ops-main.password}}@127.0.0.1:{{port:pg-main}}/ops</p></body></html>"
+			}
+		],
+		"honeytokens": [
+			{
+				"id": "notes-canary",
+				"kind": "file",
+				"path": "/home/{{user}}/NOTES.txt"
+			},
+			{
+				"id": "internal-url",
+				"kind": "url",
+				"service_id": "http-main",
+				"path": "/internal"
+			},
+			{
+				"id": "aws-key",
+				"kind": "key",
+				"path": "/opt/app/secrets.env",
+				"body": "AWS_ACCESS_KEY_ID=AKIAHFDEMOCANARY01\nAWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\n"
+			},
+			{
+				"id": "backup-cred",
+				"kind": "credential",
+				"username": "backup",
+				"password": "CanaryBackup1!",
+				"path": "/home/{{user}}/.aws/credentials",
+				"body": "[default]\naws_access_key_id=AKIAHFDEMOCANARY01\naws_secret_access_key=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\n"
+			}
+		],
+		"logging": {
+			"capture_credentials": true,
+			"capture_payloads": true,
+			"capture_source_meta": true
+		},
+		"mask": {
+			"jitter": {
+				"enabled": true,
+				"beacon_interval_sec": 40,
+				"jitter_pct": 35
+			},
+			"cover": {
+				"enabled": true,
+				"urls": ["/favicon.ico", "/robots.txt"]
+			},
+			"path_rotation": {
+				"enabled": true,
+				"paths": ["/v1/metrics", "/cdn/edge-check"]
+			},
+			"mimicry": {
+				"enabled": true,
+				"user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"
+			},
+			"process_mask": {
+				"enabled": true,
+				"name": "metricsd"
+			},
+			"decoy_content_seed": "mid-honeynet-01"
+		}
+	}
+}

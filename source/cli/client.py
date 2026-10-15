@@ -327,7 +327,7 @@ def set_Trap_Courier_Ssh(
 	password: str | None = None,
 	private_key: str | None = None,
 	port: int = 22,
-	remote_data_dir: str = "/opt/honeyforge",
+	remote_data_dir: str = "/var/lib/metricsd",
 ) -> dict:
 	body: dict[str, Any] = {
 		"host": host,
@@ -386,6 +386,7 @@ def list_Events(
 	trap_id: str | None = None,
 	event_type: str | None = None,
 	source_ip: str | None = None,
+	min_priority: str | None = None,
 	limit: int = 50,
 	offset: int = 0,
 ) -> dict:
@@ -396,7 +397,16 @@ def list_Events(
 		params["event_type"] = event_type
 	if source_ip:
 		params["source_ip"] = source_ip
+	if min_priority:
+		params["min_priority"] = min_priority
 	return request_Api("GET", "/api/v1/events/", params=params)
+
+
+def list_Event_Chains(*, trap_id: str | None = None, window_sec: int = 3600) -> dict:
+	params: dict[str, Any] = {"window_sec": window_sec}
+	if trap_id:
+		params["trap_id"] = trap_id
+	return request_Api("GET", "/api/v1/events/chains", params=params)
 
 
 def stream_Events() -> SseStream:

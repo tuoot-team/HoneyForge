@@ -5,9 +5,9 @@ import (
 	"strconv"
 	"time"
 
-	"honeyforge/honeypots/internal/auth"
-	"honeyforge/honeypots/internal/model"
-	"honeyforge/honeypots/internal/state"
+	"metricsd/internal/auth"
+	"metricsd/internal/model"
+	"metricsd/internal/state"
 )
 
 type dbSession struct {
@@ -18,6 +18,7 @@ type dbSession struct {
 	Credentials []model.CredentialBlock
 	Store       *auth.Store
 	OnEvent     EventHandler
+	Tokens      *HoneytokenRegistry
 }
 
 func (s dbSession) arm(conn net.Conn) {
@@ -77,6 +78,12 @@ func (s dbSession) emit_Auth(ip *string, port *int, username, password, database
 		"service":  s.ServiceID,
 		"success":  success,
 	})
+	if meta, ok := s.Tokens.Match_Cred(username, password); ok {
+		Emit_HoneytokenHit(s.OnEvent, ip, port, meta, "auth", map[string]any{
+			"service": s.ServiceID,
+			"port":    s.Port,
+		})
+	}
 }
 
 func (s dbSession) emit_Command(ip *string, port *int, username, database, command string) {

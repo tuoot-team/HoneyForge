@@ -37,19 +37,20 @@ case "$arch" in
 esac
 
 if [ "$(id -u)" -eq 0 ]; then
-	dest="/opt/honeyforge-courier"
+	dest="/var/lib/metricsd-relay"
 else
-	dest="${HOME}/.honeyforge-courier"
+	dest="${HOME}/.local/share/metricsd-relay"
 fi
 if [ -n "${HF_INSTALL_DIR:-}" ]; then
 	dest="$HF_INSTALL_DIR"
 fi
 mkdir -p "$dest"
 
+# Центр отдаёт /downloads/courier; на диске - нейтральное имя.
 bin_url="${center}/downloads/courier"
-bin_path="${dest}/courier"
+bin_path="${dest}/metricsd-relay"
 echo "${msg_Downloading}${bin_url}"
-	tmp_path="${bin_path}.tmp.$$"
+tmp_path="${bin_path}.tmp.$$"
 if command -v curl >/dev/null 2>&1; then
 	curl -fsSL --connect-timeout 20 --max-time 300 --retry 3 --retry-delay 2 \
 		"$bin_url" -o "$tmp_path"
@@ -61,7 +62,7 @@ else
 fi
 if [ ! -s "$tmp_path" ]; then
 	rm -f "$tmp_path"
-	echo "Пустой бинарь courier - проверь $bin_url" >&2
+	echo "Пустой бинарь - проверь $bin_url" >&2
 	exit 1
 fi
 mv -f "$tmp_path" "$bin_path"

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"honeyforge/honeypots/internal/texts"
+	"metricsd/internal/texts"
 )
 
 const (

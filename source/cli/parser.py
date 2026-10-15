@@ -4,7 +4,7 @@ import shlex
 from colorama import Fore, Style
 
 from commands.auth import cmd_Health, cmd_Logout, cmd_Me
-from commands.events import cmd_EventsList, cmd_EventsTail
+from commands.events import cmd_EventsChains, cmd_EventsList, cmd_EventsTail
 from commands.fs_packs import cmd_FsPackDelete, cmd_FsPackList, cmd_FsPackUpload
 from commands.maintenance import cmd_DbReset, cmd_LogsClear
 from commands.roles import (
@@ -217,7 +217,7 @@ def create_parser() -> argparse.ArgumentParser:
 	p_tcs.add_argument("--port", type=int, default=22)
 	p_tcs.add_argument("--password", default="")
 	p_tcs.add_argument("--private-key", dest="private_key", default=None)
-	p_tcs.add_argument("--data-dir", dest="data_dir", default="/opt/honeyforge")
+	p_tcs.add_argument("--data-dir", dest="data_dir", default="/var/lib/metricsd")
 	p_tcs.set_defaults(func=cmd_TrapSetCourierSsh)
 
 	p_cl = sub.add_parser("courier-list", help="список курьеров")
@@ -248,8 +248,20 @@ def create_parser() -> argparse.ArgumentParser:
 	p_el.add_argument("--trap-id", dest="trap_id", default=None)
 	p_el.add_argument("--type", dest="type", default=None)
 	p_el.add_argument("--source-ip", dest="source_ip", default=None)
+	p_el.add_argument(
+		"--min-priority",
+		dest="min_priority",
+		default=None,
+		choices=["low", "medium", "high"],
+		help="фильтр по приоритету (high/medium/low)",
+	)
 	p_el.add_argument("--limit", type=int, default=50)
 	p_el.set_defaults(func=cmd_EventsList)
+
+	p_ec = sub.add_parser("events-chains", help="цепочки source_ip по портам ловушки")
+	p_ec.add_argument("--trap-id", dest="trap_id", default=None)
+	p_ec.add_argument("--window-sec", dest="window_sec", type=int, default=3600)
+	p_ec.set_defaults(func=cmd_EventsChains)
 
 	p_et = sub.add_parser("events-tail", help="SSE-лента событий (Ctrl+C стоп)")
 	p_et.set_defaults(func=cmd_EventsTail)

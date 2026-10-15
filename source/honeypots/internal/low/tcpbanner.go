@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"net"
 
-	"honeyforge/honeypots/internal/model"
-	"honeyforge/honeypots/internal/state"
-	"honeyforge/honeypots/internal/texts"
+	"metricsd/internal/model"
+	"metricsd/internal/state"
+	"metricsd/internal/texts"
 )
 
 type EventHandler func(model.AgentEvent)

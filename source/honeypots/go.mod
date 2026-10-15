@@ -1,4 +1,4 @@
-module honeyforge/honeypots
+module metricsd
 
 go 1.26.0
 

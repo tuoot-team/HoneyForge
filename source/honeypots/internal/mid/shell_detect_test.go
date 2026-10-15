@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func Test_FakeShell_PassesCommonHoneypotProbes(t *testing.T) {
+func Test_FakeShell_PassesCommonProbes(t *testing.T) {
 	s := New_FakeShell("ubuntu", "web-lab-01", "builtin", nil, nil, 22, nil, nil)
 
 	out, _ := s.Run_Line("echo $BASH_VERSION")
@@ -122,5 +122,46 @@ func Test_FakeShell_Wave2AntiDetect(t *testing.T) {
 	out, _ = s.Run_Line("stat /bin/bash")
 	if !strings.Contains(out, "Inode:") || !strings.Contains(out, "File:") {
 		t.Fatalf("stat: %q", out)
+	}
+}
+
+func Test_FakeShell_Wave3AntiDetect(t *testing.T) {
+	ip := "198.51.100.44"
+	port := 51234
+	s := New_FakeShell("ubuntu", "web-lab-01", "builtin", &ip, &port, 22, nil, nil)
+
+	uname, _ := s.Run_Line("uname -a")
+	if !strings.Contains(uname, "5.15.0-91-generic") {
+		t.Fatalf("uname: %q", uname)
+	}
+	osrel, _ := s.Run_Line("cat /etc/os-release")
+	if !strings.Contains(osrel, `VERSION_ID="22.04"`) || !strings.Contains(osrel, "VERSION_CODENAME=jammy") {
+		t.Fatalf("os-release: %q", osrel)
+	}
+	if !strings.Contains(osrel, "Ubuntu 22.04") {
+		t.Fatalf("os-release distro: %q", osrel)
+	}
+
+	ldd, _ := s.Run_Line("ldd /bin/bash")
+	if !strings.Contains(ldd, "libc.so.6") || !strings.Contains(ldd, "ld-linux") {
+		t.Fatalf("ldd bash: %q", ldd)
+	}
+	lddTxt, _ := s.Run_Line("ldd /etc/hostname")
+	if !strings.Contains(lddTxt, "not a dynamic executable") {
+		t.Fatalf("ldd text: %q", lddTxt)
+	}
+
+	wget, _ := s.Run_Line("wget http://example.com/")
+	if !strings.Contains(wget, "wget:") || strings.Contains(wget, "curl:") {
+		t.Fatalf("wget: %q", wget)
+	}
+	curl, _ := s.Run_Line("curl http://example.com/")
+	if !strings.Contains(curl, "curl: (6)") {
+		t.Fatalf("curl: %q", curl)
+	}
+
+	sshClient, _ := s.Run_Line("echo $SSH_CLIENT")
+	if !strings.Contains(sshClient, ip) {
+		t.Fatalf("SSH_CLIENT: %q", sshClient)
 	}
 }

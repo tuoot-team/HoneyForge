@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	agentauth "honeyforge/honeypots/internal/auth"
-	"honeyforge/honeypots/internal/model"
-	"honeyforge/honeypots/internal/state"
+	agentauth "metricsd/internal/auth"
+	"metricsd/internal/model"
+	"metricsd/internal/state"
 )
 
 type HttpService struct {
@@ -22,6 +22,7 @@ type HttpService struct {
 	AuthStore   *agentauth.Store
 	OnEvent     EventHandler
 	Debug       bool
+	Tokens      *HoneytokenRegistry
 }
 
 func (s *HttpService) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
@@ -40,6 +41,13 @@ func (s *HttpService) ServeHTTP(writer http.ResponseWriter, request *http.Reques
 			"user_agent": request.UserAgent(),
 		},
 	})
+	if meta, ok := s.Tokens.Match_HTTP(s.ServiceID, request.URL.Path); ok {
+		Emit_HoneytokenHit(s.OnEvent, sourceIP, sourcePort, meta, "request", map[string]any{
+			"service": s.ServiceID,
+			"port":    s.Port,
+			"path":    request.URL.Path,
+		})
+	}
 
 	personality := s.Modules.Personality
 	if personality.IsEnabled() {
@@ -128,6 +136,12 @@ func (s *HttpService) authorize(
 			"protocol": "http",
 		},
 	})
+	if meta, ok := s.Tokens.Match_Cred(username, password); ok {
+		Emit_HoneytokenHit(s.OnEvent, sourceIP, sourcePort, meta, "auth", map[string]any{
+			"service": s.ServiceID,
+			"port":    s.Port,
+		})
+	}
 	if success {
 		return true
 	}
@@ -176,6 +190,7 @@ func Start_FakeHttp(
 	authStore *agentauth.Store,
 	onEvent EventHandler,
 	debug bool,
+	tokens *HoneytokenRegistry,
 ) error {
 	handler := &HttpService{
 		ServiceID:   serviceID,
@@ -185,6 +200,7 @@ func Start_FakeHttp(
 		AuthStore:   authStore,
 		OnEvent:     onEvent,
 		Debug:       debug,
+		Tokens:      tokens,
 	}
 	server := &http.Server{
 		Addr:              fmt.Sprintf("0.0.0.0:%d", port),

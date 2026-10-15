@@ -8,7 +8,7 @@ import (
 	"time"
 	"unicode"
 
-	"honeyforge/honeypots/internal/texts"
+	"metricsd/internal/texts"
 )
 
 const sleepMaxSec = 5
@@ -66,9 +66,9 @@ func (s *FakeShell) seed_RuntimeFs() {
 		"/usr/bin/sha256sum", "/usr/bin/env", "/usr/bin/id", "/usr/bin/whoami",
 		"/usr/bin/ps", "/usr/bin/top", "/usr/bin/free", "/usr/bin/df",
 		"/usr/bin/curl", "/usr/bin/wget", "/usr/bin/sudo", "/usr/bin/ssh",
-		"/usr/bin/netstat", "/usr/bin/ss", "/usr/bin/ping", "/usr/bin/readlink",
-		"/usr/bin/stat", "/usr/bin/tty", "/usr/bin/command", "/usr/bin/type",
-		"/sbin/ifconfig", "/usr/sbin/sshd",
+		"/usr/bin/ldd", "/usr/bin/netstat", "/usr/bin/ss", "/usr/bin/ping",
+		"/usr/bin/readlink", "/usr/bin/stat", "/usr/bin/tty", "/usr/bin/command",
+		"/usr/bin/type", "/sbin/ifconfig", "/usr/sbin/sshd",
 	}
 	for i, path := range bins {
 		base := 110000 + int(seed%50000) + len(path)*13 + i*97

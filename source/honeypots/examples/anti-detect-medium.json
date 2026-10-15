@@ -1,0 +1,69 @@
+{
+	"name": "anti-detect-medium",
+	"description": "Smoke 5b: OpenSSH-like banner, cover+path_rotation, process metricsd",
+	"interaction_level": "medium",
+	"blocks": {
+		"credentials": [
+			{
+				"id": "ops-main",
+				"username": "ops",
+				"password": "ChangeMe2024!",
+				"note": "SSH sticky bait"
+			}
+		],
+		"services": [
+			{
+				"type": "ssh",
+				"id": "ssh-main",
+				"port": 22,
+				"enabled": true,
+				"modules": {
+					"banner": {
+						"version": "SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.6"
+					},
+					"auth": {
+						"mode": "second_attempt_sticky",
+						"credential_ids": ["ops-main"],
+						"delay_ms_min": 200,
+						"delay_ms_max": 800,
+						"sticky_ttl_hours": 72
+					},
+					"shell": {
+						"enabled": true,
+						"fs_pack": "ubuntu-22.04",
+						"max_session_sec": 600
+					}
+				}
+			}
+		],
+		"logging": {
+			"capture_credentials": true,
+			"capture_payloads": true,
+			"capture_source_meta": true
+		},
+		"mask": {
+			"jitter": {
+				"enabled": true,
+				"beacon_interval_sec": 45,
+				"jitter_pct": 40
+			},
+			"cover": {
+				"enabled": true,
+				"urls": ["/favicon.ico", "/robots.txt", "/cdn/health"]
+			},
+			"path_rotation": {
+				"enabled": true,
+				"paths": ["/v1/metrics", "/cdn/edge-check"]
+			},
+			"mimicry": {
+				"enabled": true,
+				"user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+			},
+			"process_mask": {
+				"enabled": true,
+				"name": "metricsd"
+			},
+			"decoy_content_seed": "anti-detect-01"
+		}
+	}
+}

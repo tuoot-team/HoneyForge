@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"honeyforge/honeypots/internal/model"
+	"metricsd/internal/model"
 )
 
 const (

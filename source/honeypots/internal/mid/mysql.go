@@ -12,9 +12,9 @@ import (
 	"net"
 	"strings"
 
-	"honeyforge/honeypots/internal/auth"
-	"honeyforge/honeypots/internal/model"
-	"honeyforge/honeypots/internal/texts"
+	"metricsd/internal/auth"
+	"metricsd/internal/model"
+	"metricsd/internal/texts"
 )
 
 const (
@@ -39,6 +39,7 @@ func Start_FakeMysql(
 	store *auth.Store,
 	onEvent EventHandler,
 	debug bool,
+	tokens *HoneytokenRegistry,
 ) error {
 	version := strings.TrimSpace(modules.Banner.Version)
 	if version == "" {
@@ -52,6 +53,7 @@ func Start_FakeMysql(
 		Credentials: credentials,
 		Store:       store,
 		OnEvent:     onEvent,
+		Tokens:      tokens,
 	}
 	if debug {
 		fmt.Printf(texts.MsgAgentServiceStart+"\n", serviceID, port)

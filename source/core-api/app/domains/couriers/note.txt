@@ -1,3 +1,3 @@
-Курьер: третий хост забирает events_buffer с ловушки по SSH.
+Курьер: третий хост забирает queue.json с ловушки по SSH.
 collection_mode=courier в mask профиля; классические mask выключены.
 Визиты планируются по collect_interval_sec; claim/complete под X-Courier-Token.

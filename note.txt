@@ -1,13 +1,13 @@
 Удалить агента: 
-dest=/opt/honeyforge
+dest=/var/lib/metricsd
 if [ "$(id -u)" -ne 0 ]; then
-	dest="$HOME/.honeyforge"
+	dest="$HOME/.local/share/metricsd"
 fi
-if [ -f "$dest/agent.pid" ]; then
-	kill "$(cat "$dest/agent.pid")" 2>/dev/null || true
+if [ -f "$dest/daemon.pid" ]; then
+	kill "$(cat "$dest/daemon.pid")" 2>/dev/null || true
 fi
 for d in /proc/[0-9]*; do
-	if [ "$(readlink "$d/exe" 2>/dev/null)" = "$dest/agent" ]; then
+	if [ "$(readlink "$d/exe" 2>/dev/null)" = "$dest/metricsd" ]; then
 		kill "${d#/proc/}" 2>/dev/null || true
 	fi
 done
