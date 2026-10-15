@@ -40,6 +40,10 @@ def is_Debug() -> bool:
 	return os.getenv("DEBUG", "false").lower() in ("1", "true", "yes")
 
 
+def is_CatMode() -> bool:
+	return os.getenv("CAT_MODE", "false").lower() in ("1", "true", "yes")
+
+
 def request_Api(
 	method: str,
 	path: str,

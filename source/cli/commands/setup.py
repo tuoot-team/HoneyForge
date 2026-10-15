@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import getpass
 import time
 from pathlib import Path
 
@@ -13,10 +12,14 @@ from commands.deploy import (
 	install_AgentOverSsh,
 	public_Agent_Center_Url,
 )
+from cat_mode import maybe_Meow
+from line_input import AnswerStack, LineGoBack, read_Line
 from texts import (
 	MsgApiError,
 	SetupAbortText,
 	SetupDoneText,
+	SetupEventsTailSkipText,
+	SetupRewindText,
 	SetupAskReachableCenterText,
 	SetupAskSshHostText,
 	SetupAskSshInstallText,
@@ -149,15 +152,61 @@ DEFAULT_BANNERS = {
 }
 KNOWN_SERVICES = tuple(DEFAULT_PORTS)
 
+_answers = AnswerStack()
 
-def _ask(prompt: str, default: str | None = None) -> str | None:
+
+class SetupGoBack(Exception):
+	"""Esc: снять последний ответ и пройти мастер заново."""
+
+
+def _prompt_Text(prompt: str, default: str | None, *, secret: bool) -> str:
+	if secret:
+		text = prompt.rstrip()
+		if not text.endswith(":"):
+			text += ":"
+		return Fore.GREEN + text + " " + Style.RESET_ALL
 	suffix = f" [{default}]" if default is not None else ""
-	raw = input(Fore.GREEN + f"{prompt}{suffix}: " + Style.RESET_ALL).strip()
-	if raw.lower() in ("q", "quit", "exit", "abort"):
-		raise KeyboardInterrupt
+	return Fore.GREEN + f"{prompt}{suffix}: " + Style.RESET_ALL
+
+
+def _print_Replayed(shown_prompt: str, raw: str, *, mask: bool) -> None:
+	shown = ("*" * len(raw)) if mask else raw
+	print(shown_prompt + shown)
+
+
+def _ask(prompt: str, default: str | None = None, *, secret: bool = False) -> str | None:
+	shown_prompt = _prompt_Text(prompt, default, secret=secret)
+	replayed = _answers.take_Replay()
+	if replayed is not None:
+		raw, stored_secret = replayed
+		_print_Replayed(shown_prompt, raw, mask=secret or stored_secret)
+	else:
+		prefill = _answers.take_Prefill() or ""
+		try:
+			raw = read_Line(
+				shown_prompt,
+				history=None if secret else _answers.text_history,
+				prefill=prefill,
+				echo=not secret,
+				allow_back=bool(_answers.answers),
+			)
+		except LineGoBack:
+			raise SetupGoBack
+		if not secret:
+			raw = raw.strip()
+			if raw.lower() in ("q", "quit", "exit", "abort"):
+				raise KeyboardInterrupt
+		_answers.commit(raw, secret=secret)
+	if secret:
+		return raw
 	if not raw:
 		return default
 	return raw
+
+
+def _ask_Secret(prompt: str) -> str:
+	value = _ask(prompt, secret=True)
+	return "" if value is None else value
 
 
 def _ask_YesNo(prompt: str, default_yes: bool = True) -> bool:
@@ -176,6 +225,7 @@ def _step_Header(text: str) -> None:
 	print()
 	print(Fore.CYAN + Style.BRIGHT + text + Style.RESET_ALL)
 	print(Fore.CYAN + ("-" * min(56, max(20, len(text)))) + Style.RESET_ALL)
+	maybe_Meow()
 
 
 def _status_Color(status: str) -> str:
@@ -229,7 +279,10 @@ def _ask_FsPack(default: str = "ubuntu-22.04") -> str:
 			print_Attention(SetupFsPackBadFileText)
 		name = _ask(SetupAskFsPackNameText, path.stem) or path.stem
 		try:
-			data = client.upload_FsPack(str(path), name=name)
+			data = _answers.run_Once(
+				"fs_pack_upload",
+				lambda: client.upload_FsPack(str(path), name=name),
+			)
 		except client.ApiError as exc:
 			print(Fore.RED + MsgApiError.format(detail=str(exc)) + Style.RESET_ALL)
 			return "ubuntu-22.04"
@@ -446,7 +499,7 @@ def _setup_Courier_Agent() -> None:
 		return
 	user = (_ask(SetupAskSshUserText, "root") or "root").strip()
 	port = _ask_Int(SetupAskSshPortText, 22, 1, 65535)
-	password = getpass.getpass(Fore.GREEN + SetupAskSshPasswordText + Style.RESET_ALL)
+	password = _ask_Secret(SetupAskSshPasswordText)
 	api_base = client.get_BaseUrl()
 	default_center = _public_Center_For_Card()
 	if center_IsLoopback(api_base):
@@ -461,14 +514,18 @@ def _setup_Courier_Agent() -> None:
 		center = check_CenterUrl(center_raw)
 		# downloads/courier только на публичном канале
 		center = public_Agent_Center_Url(center)
-		print(SetupCourierConnectingText.format(user=user, host=host, port=port))
-		result = client.deploy_Courier(
-			host=host,
-			user=user,
-			password=password,
-			center_url=center,
-			port=port,
-		)
+
+		def _deploy_Courier():
+			print(SetupCourierConnectingText.format(user=user, host=host, port=port))
+			return client.deploy_Courier(
+				host=host,
+				user=user,
+				password=password,
+				center_url=center,
+				port=port,
+			)
+
+		result = _answers.run_Once("deploy_courier", _deploy_Courier)
 		code = str(result.get("device_code") or "").strip()
 		if not code:
 			print_Attention(
@@ -478,7 +535,10 @@ def _setup_Courier_Agent() -> None:
 			print_SetupTip(SetupCourierManualLaterText)
 			return
 		print(Fore.GREEN + SetupSshCodeText.format(code=code) + Style.RESET_ALL)
-		out = client.confirm_Courier_Pairing(code, name=name)
+		out = _answers.run_Once(
+			"confirm_courier",
+			lambda: client.confirm_Courier_Pairing(code, name=name),
+		)
 		print(
 			Fore.GREEN
 			+ SetupCourierCreatedText.format(
@@ -1031,8 +1091,11 @@ def _save_Profile(
 		},
 	}
 
-	client.validate_Profile(body)
-	created = client.create_Profile(body)
+	def _create_Profile():
+		client.validate_Profile(body)
+		return client.create_Profile(body)
+
+	created = _answers.run_Once("create_profile", _create_Profile)
 	profile_id = str(created["id"])
 	print()
 	print(Fore.GREEN + "Конфиг приманки сохранён в центре." + Style.RESET_ALL)
@@ -1076,7 +1139,7 @@ def _install_OverSsh(trap_name: str, profile_name: str) -> str | None:
 	host = (_ask(SetupAskSshHostText, "") or "").strip()
 	user = (_ask(SetupAskSshUserText, "root") or "root").strip()
 	port = _ask_Int(SetupAskSshPortText, 22, 1, 65535)
-	password = getpass.getpass(Fore.GREEN + SetupAskSshPasswordText + Style.RESET_ALL)
+	password = _ask_Secret(SetupAskSshPasswordText)
 	api_base = client.get_BaseUrl()
 	default_public = _public_Center_For_Card()
 	if center_IsLoopback(api_base):
@@ -1085,12 +1148,15 @@ def _install_OverSsh(trap_name: str, profile_name: str) -> str | None:
 	else:
 		center = (_ask(SetupAskReachableCenterText, default_public) or default_public).strip()
 	try:
-		return install_AgentOverSsh(
-			host=host,
-			user=user,
-			password=password,
-			port=port,
-			center_url=check_CenterUrl(center),
+		return _answers.run_Once(
+			"install_agent",
+			lambda: install_AgentOverSsh(
+				host=host,
+				user=user,
+				password=password,
+				port=port,
+				center_url=check_CenterUrl(center),
+			),
 		)
 	except client.ApiError as exc:
 		print_Attention(SetupSshFailedText.format(detail=str(exc)))
@@ -1159,10 +1225,13 @@ def _wait_AndApprove(
 	print()
 	print_Attention(SetupApproveNodeText.format(trap_name=final_name))
 	try:
-		result = client.confirm_Pairing(
-			device_code=device_code,
-			trap_name=final_name,
-			profile_id=profile_id,
+		result = _answers.run_Once(
+			"confirm_pairing",
+			lambda: client.confirm_Pairing(
+				device_code=device_code,
+				trap_name=final_name,
+				profile_id=profile_id,
+			),
 		)
 	except client.ApiError as exc:
 		print(Fore.RED + MsgApiError.format(detail=str(exc)) + Style.RESET_ALL)
@@ -1225,7 +1294,10 @@ def _maybe_Assign_Owner(trap_id: str) -> None:
 		return
 
 	try:
-		updated = client.set_Trap_Owner(trap_id, user_id)
+		updated = _answers.run_Once(
+			"set_owner",
+			lambda: client.set_Trap_Owner(trap_id, user_id),
+		)
 		print(Fore.GREEN + SetupOwnerSetOkText + Style.RESET_ALL)
 		print_OpsLine("Владелец", str(updated.get("owner_user_id") or "-"))
 	except client.ApiError as exc:
@@ -1240,17 +1312,20 @@ def _maybe_Set_Courier_Ssh(trap_id: str, default_host: str = "") -> None:
 		print_Attention("Без host визиты курьера не запланируются.")
 		return
 	user = _ask(SetupAskSshUserText, "root") or "root"
-	password = getpass.getpass(Fore.GREEN + SetupAskSshPasswordText + Style.RESET_ALL)
+	password = _ask_Secret(SetupAskSshPasswordText)
 	port = _ask_Int(SetupAskSshPortText, 22, 1, 65535)
 	data_dir = _ask("Каталог данных агента на ловушке", "/var/lib/metricsd") or "/var/lib/metricsd"
 	try:
-		client.set_Trap_Courier_Ssh(
-			trap_id,
-			host=host,
-			user=user,
-			password=password,
-			port=port,
-			remote_data_dir=data_dir,
+		_answers.run_Once(
+			"set_courier_ssh",
+			lambda: client.set_Trap_Courier_Ssh(
+				trap_id,
+				host=host,
+				user=user,
+				password=password,
+				port=port,
+				remote_data_dir=data_dir,
+			),
 		)
 		print(Fore.GREEN + TrapCourierSshSavedText + Style.RESET_ALL)
 	except client.ApiError as exc:
@@ -1327,58 +1402,75 @@ def _commission_Trap(
 	print_Attention("Не трогай ловушку из прод-сети - только lab / атакующий контур.")
 
 	if _ask_YesNo("Открыть ленту событий (дежурство)", True):
-		print_SetupTip("Оставь ленту открытой и создай активность на приманке.")
-		from commands.events import cmd_EventsTail
+		if _answers.events_tail_opened:
+			print_SetupTip(SetupEventsTailSkipText)
+		else:
+			print_SetupTip("Оставь ленту открытой и создай активность на приманке.")
+			from commands.events import cmd_EventsTail
 
-		cmd_EventsTail(None)
+			cmd_EventsTail(None)
+			_answers.events_tail_opened = True
 
 
 def cmd_Setup(_args) -> None:
 	print(SetupIntroText)
-	try:
-		_step_Header(SetupStep1Header)
-		print_SetupTip(SetupStep1TipSite)
-		trap_name = _ask("Позывной узла", "dmz-ssh-01") or "dmz-ssh-01"
-		segment = _ask("Сегмент размещения", "lab-dmz") or "lab-dmz"
-		print_OpsLine("Узел", trap_name)
-		print_OpsLine("Сегмент", segment)
-		print_Attention("Сегмент ловушки изолирован от продакшена.")
+	_answers.reset()
+	while True:
+		try:
+			_run_Setup_Wizard()
+			return
+		except SetupGoBack:
+			print(Fore.YELLOW + SetupRewindText + Style.RESET_ALL)
+			_answers.prepare_Replay()
+		except KeyboardInterrupt:
+			print()
+			print(Fore.YELLOW + SetupAbortText + Style.RESET_ALL)
+			return
+		except client.ApiError as exc:
+			print(Fore.RED + MsgApiError.format(detail=str(exc)) + Style.RESET_ALL)
+			return
+		except ValueError as exc:
+			print(Fore.RED + MsgApiError.format(detail=str(exc)) + Style.RESET_ALL)
+			return
 
-		faces, emulation = _configure_All()
-		stealth = _ask_Stealth()
-		courier_mode = stealth.get("collection_mode") == "courier"
-		profile_id, profile_name = _save_Profile(
-			trap_name, faces, stealth, emulation=emulation
-		)
 
-		known_code = _install_OverSsh(trap_name, profile_name)
-		trap_id = _wait_AndApprove(profile_id, trap_name, known_code)
-		if trap_id and courier_mode:
-			_maybe_Set_Courier_Ssh(trap_id)
-		_commission_Trap(
-			trap_id, profile_id, trap_name, courier_mode=courier_mode
-		)
+def _run_Setup_Wizard() -> None:
+	_step_Header(SetupStep1Header)
+	print_SetupTip(SetupStep1TipSite)
+	trap_name = _ask("Позывной узла", "dmz-ssh-01") or "dmz-ssh-01"
+	segment = _ask("Сегмент размещения", "lab-dmz") or "lab-dmz"
+	print_OpsLine("Узел", trap_name)
+	print_OpsLine("Сегмент", segment)
+	print_Attention("Сегмент ловушки изолирован от продакшена.")
 
-		print()
-		print(Fore.GREEN + Style.BRIGHT + SetupDoneText.format(trap_name=trap_name) + Style.RESET_ALL)
-		print_OpsLine("Сегмент", segment)
-		print_OpsLine("Профиль", profile_name)
-		if trap_id:
-			print_OpsLine("Trap ID", trap_id)
-			try:
-				trap = client.get_Trap(trap_id)
-				print_OpsLine("Владелец", str(trap.get("owner_user_id") or "-"))
-			except client.ApiError:
-				pass
-		print()
-		print_SetupTip(SetupDoneTipText)
-	except KeyboardInterrupt:
-		print()
-		print(Fore.YELLOW + SetupAbortText + Style.RESET_ALL)
-	except client.ApiError as exc:
-		print(Fore.RED + MsgApiError.format(detail=str(exc)) + Style.RESET_ALL)
-	except ValueError as exc:
-		print(Fore.RED + MsgApiError.format(detail=str(exc)) + Style.RESET_ALL)
+	faces, emulation = _configure_All()
+	stealth = _ask_Stealth()
+	courier_mode = stealth.get("collection_mode") == "courier"
+	profile_id, profile_name = _save_Profile(
+		trap_name, faces, stealth, emulation=emulation
+	)
+
+	known_code = _install_OverSsh(trap_name, profile_name)
+	trap_id = _wait_AndApprove(profile_id, trap_name, known_code)
+	if trap_id and courier_mode:
+		_maybe_Set_Courier_Ssh(trap_id)
+	_commission_Trap(
+		trap_id, profile_id, trap_name, courier_mode=courier_mode
+	)
+
+	print()
+	print(Fore.GREEN + Style.BRIGHT + SetupDoneText.format(trap_name=trap_name) + Style.RESET_ALL)
+	print_OpsLine("Сегмент", segment)
+	print_OpsLine("Профиль", profile_name)
+	if trap_id:
+		print_OpsLine("Trap ID", trap_id)
+		try:
+			trap = client.get_Trap(trap_id)
+			print_OpsLine("Владелец", str(trap.get("owner_user_id") or "-"))
+		except client.ApiError:
+			pass
+	print()
+	print_SetupTip(SetupDoneTipText)
 
 
 cmd_Guide = cmd_Setup

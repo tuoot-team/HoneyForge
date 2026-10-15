@@ -7,6 +7,7 @@ from typing import Any
 from colorama import Fore, Style
 
 import client
+from cat_mode import maybe_Meow
 from texts import (
 	DispEmptyListText,
 	DispMaskMethodsTitle,
@@ -111,10 +112,12 @@ def print_Section(title: str) -> None:
 	print()
 	print(Fore.CYAN + Style.BRIGHT + title + Style.RESET_ALL)
 	print(Fore.CYAN + ("-" * min(56, max(12, len(title)))) + Style.RESET_ALL)
+	maybe_Meow()
 
 
 def print_Empty(what: str) -> None:
 	print(Fore.YELLOW + DispEmptyListText.format(what=what) + Style.RESET_ALL)
+	maybe_Meow()
 
 
 def maybe_Print_RawJson(data: Any) -> None:

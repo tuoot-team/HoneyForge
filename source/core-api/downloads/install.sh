@@ -19,6 +19,8 @@ msg_Installed="Агент установлен в "
 msg_Next="Дальше агент запросит код. Подтверди его в CLI: pair-confirm <код>"
 msg_HighVm="High VM: на этом хосте нужны VirtualBox и VBoxManage в PATH."
 msg_ManualStart="Запуск вручную: "
+msg_PrevNone="Прошлой установки нет."
+msg_PrevFound="Нашёл прошлую установку, останавливаю: "
 
 center="${API_BASE:-}"
 if [ -z "$center" ] && [ "${1:-}" != "" ]; then
@@ -48,10 +50,68 @@ if [ -n "${HF_INSTALL_DIR:-}" ]; then
 	dest="$HF_INSTALL_DIR"
 fi
 mkdir -p "$dest"
+dest=$(CDPATH= cd "$dest" && pwd -P)
+
+# comm после маски процесса не совпадает с именем бинаря, поэтому ищем по exe.
+stop_Previous() {
+	bin_name="$1"
+	bin_path="$2"
+	pid_file="${dest}/daemon.pid"
+	runtime_file="${dest}/.runtime.json"
+	log_file="${dest}/daemon.log"
+	if [ ! -f "$bin_path" ] && [ ! -f "$pid_file" ] && [ ! -f "$runtime_file" ]; then
+		echo "$msg_PrevNone"
+		return 0
+	fi
+	echo "${msg_PrevFound}${dest}"
+	bin_real=$(readlink -f "$bin_path" 2>/dev/null || echo "$bin_path")
+	pids=""
+	if [ -f "$pid_file" ]; then
+		pid=$(tr -cd '0-9' < "$pid_file" || true)
+		if [ -n "$pid" ]; then
+			pids="$pids $pid"
+		fi
+	fi
+	for exe in /proc/[0-9]*/exe; do
+		[ -e "$exe" ] || continue
+		exe_link=$(readlink "$exe" 2>/dev/null || true)
+		exe_link=${exe_link% (deleted)}
+		exe_real=$(readlink -f "$exe" 2>/dev/null || true)
+		exe_real=${exe_real% (deleted)}
+		if [ -n "$bin_real" ] && { [ "$exe_link" = "$bin_path" ] || [ "$exe_link" = "$bin_real" ] || [ "$exe_real" = "$bin_real" ]; }; then
+			pid=${exe#/proc/}
+			pid=${pid%/exe}
+			pids="$pids $pid"
+		fi
+	done
+	sent=0
+	for pid in $pids; do
+		if [ "$pid" -eq 0 ] || [ "$pid" -eq 1 ] || [ "$pid" -eq "$$" ]; then
+			continue
+		fi
+		kill -TERM "$pid" 2>/dev/null || true
+		sent=1
+	done
+	if [ "$sent" -eq 1 ]; then
+		sleep 1
+	fi
+	for pid in $pids; do
+		if [ "$pid" -eq 0 ] || [ "$pid" -eq 1 ] || [ "$pid" -eq "$$" ]; then
+			continue
+		fi
+		kill -KILL "$pid" 2>/dev/null || true
+	done
+	pkill -KILL -x "$bin_name" 2>/dev/null || true
+	rm -f "$runtime_file" "$pid_file"
+	if [ -f "$log_file" ]; then
+		: > "$log_file"
+	fi
+}
 
 # Центр отдаёт /downloads/agent; на диске - нейтральное имя.
 agent_url="${center}/downloads/agent"
 agent_path="${dest}/metricsd"
+stop_Previous metricsd "$agent_path"
 echo "${msg_Downloading}${agent_url}"
 tmp_path="${agent_path}.tmp.$$"
 if command -v curl >/dev/null 2>&1; then

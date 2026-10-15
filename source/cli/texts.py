@@ -5,6 +5,10 @@ from random import *
 
 
 def print_Logo():
+    from client import is_CatMode
+    if is_CatMode():
+        print(Fore.MAGENTA + choice(CatArts) + Style.RESET_ALL)
+        return
     selection = randint(1, 3)
     if selection == 1:
         print(Fore.MAGENTA + r"""
@@ -172,9 +176,14 @@ SetupIntroText = """
   4) убедиться, что ловушка в строю и пишет активность
 
 Пустой Enter - значение по умолчанию. q - отмена.
+Esc - вернуться к предыдущему ответу.
 """
 
 SetupAbortText = "Развёртывание прервано. Узел можно донастроить позже через setup."
+
+SetupRewindText = "Возврат к предыдущему ответу."
+
+SetupEventsTailSkipText = "Лента в этом мастере уже открывалась."
 
 SetupDoneText = "Ловушка в парке: {trap_name}"
 SetupDoneTipText = "Смена: traps-list / trap-show / trap-set-owner / events-tail / pair-list"
@@ -431,6 +440,7 @@ SetupInstallCard = """
 |  Профиль:  {profile_name}
 |  Центр:    {api_base}
 |                                                           |
+|  Скрипт сначала проверит и очистит прошлую установку.     |
 |  НА ХОСТЕ ЛОВУШКИ - три команды подряд:                   |
 |                                                           |
 |  export API_BASE="{api_base}"
@@ -460,12 +470,187 @@ SetupCourierInstallCard = """
 """
 
 
+CatMeowLines = (
+    "мяу",
+    "мрр",
+    "мяу-мяу",
+    "муррр",
+    "nya",
+    "nyaa",
+    "nyaaa",
+    "nya~",
+    "nyan",
+    "nyan~",
+    "nya nya",
+    "nyanyanya",
+    "nya!",
+    "nyaaaaan",
+    "ня",
+    "ня~",
+    "нян",
+    "няня",
+    "мяу-ня",
+    ":3 nya",
+    "mrow nya",
+    "purr nya",
+    "nya nya nya",
+)
+
+CatUwuLines = (
+    "uwu",
+    "owo",
+    "hewwo",
+    ">w<",
+    "uwu nya",
+    "owo nya~",
+    "hewwo nya",
+    "nya uwu",
+)
+
+CatArts = (
+    r"""
+ /\_/\
+( o.o )
+ > ^ <""",
+    r"""
+ /\_/\
+( -.- )
+(  >  )""",
+    r"""
+  /\___/\
+ (  o o  )
+ (   =^=  )
+  (  "  )""",
+    r"""
+  /\_/\
+ ( ^.^ )
+  > " <""",
+    r"""
+ /\_/\
+( . .)
+ ( " )""",
+    r"""
+ /\_/\
+( >.< )
+ > ^ <""",
+    r"""
+ /\_/\
+( o.o )
+(  =  )~~~~~~~""",
+    r"""
+   /\_/\
+  ( o.o )
+ / > ^ < \
+""",
+    r"""
+ /\_/\   ><>
+( o.o )
+ > ^ <""",
+    r"""
+   /\_/\
+  ( nya )
+   > ^ <""",
+    r"""
+  /\_/\
+=( o.o )=
+  )   (
+ (     )""",
+    r"""
+  /\_/\
+ ( o.o )
+ /  ^  \
+(       )""",
+    r"""
+   __
+  /  \
+ ( o.o)
+  >^<""",
+    r"""
+  |\---/|
+  | o_o |
+   \_^_/""",
+    r"""
+   /\_/\
+  ( -.- )
+   > ^ <
+  /     \
+""",
+    r"""
+  /\_/\
+ ( o o )
+  ( " )""",
+    r"""
+    /\__/\
+   /`    '\
+ === 0  0 ===
+   \  --  /
+   /------\
+  /        \
+ |          |
+  \  ||  || /
+   \_oo__oo_/""",
+    r"""
+   |\__/,|   (`\
+   |_ _  |.--.) )
+   ( T   )     /
+  (((^_(((/(((_/""",
+    r"""
+      |\      _,,,---,,_
+ZZZzz /,`.-'`'    -.  ;-;;,_
+     |,4-  ) )-,_. ,\ (  `'-'
+    '---''(_/--'  `-'\_)""",
+    r"""
+  /\     /\
+ {  `---'  }
+ {  O   O  }
+ ~~>  V  <~~
+  \  \|/  /
+   `-----'""",
+    r"""
+    /\_/\
+   ( o.o )
+    > ^ <
+   /|   |\
+  (_|   |_)""",
+    r"""
+   .       .
+   |\_____/|
+   || o o ||
+   ||  ^  ||
+    \_____/""",
+    r"""
+    /\_/\
+   ( =^.^= )
+    )   (
+   (     )""",
+    r"""
+   /\_/\
+  ( @.@ )
+   > " <  nya~""",
+    r"""
+      /\_/\
+ ____( o.o )
+/      > ^ <
+\_____(____)""",
+    r"""
+   |\---/|
+   | o_o |  nya
+    \_^_/
+   /     \
+  |  nya  |""",
+)
+
+
 def print_SetupTip(text: str) -> None:
     print(Fore.YELLOW + "  *  " + Style.RESET_ALL + text)
+    from cat_mode import maybe_Meow
+    maybe_Meow()
 
 
 def print_Attention(text: str) -> None:
     print(Fore.RED + Style.BRIGHT + "  !  " + Style.RESET_ALL + Fore.YELLOW + text + Style.RESET_ALL)
+    from cat_mode import maybe_Meow
+    maybe_Meow()
 
 
 def print_OpsLine(label: str, value: str) -> None:

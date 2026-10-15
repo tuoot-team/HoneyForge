@@ -61,3 +61,5 @@ source/high-vm/inbox/*
 *.vhd
 *.vhdx
 *.ova.part
+
+web/
