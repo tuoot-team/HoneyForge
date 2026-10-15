@@ -14,6 +14,7 @@ services:
       - ./migrations/003_users_roles.sql:/docker-entrypoint-initdb.d/003_users_roles.sql:ro
       - ./migrations/004_trap_owner.sql:/docker-entrypoint-initdb.d/004_trap_owner.sql:ro
       - ./migrations/005_courier.sql:/docker-entrypoint-initdb.d/005_courier.sql:ro
+      - ./migrations/006_vm_images.sql:/docker-entrypoint-initdb.d/006_vm_images.sql:ro
     ports:
       - "5432:5432"
     healthcheck:
@@ -30,8 +31,12 @@ services:
       POSTGRES_HOST: postgres
       USE_SQLITE: "false"
       FS_PACKS_DIR: /app/fs-packs
+      PERSONALITY_PACKS_DIR: /app/personality-packs
+      VM_IMAGES_DIR: /app/vm-images
     volumes:
       - ./fs-packs:/app/fs-packs
+      - ../personality-packs:/app/personality-packs:ro
+      - ./vm-images:/app/vm-images
     depends_on:
       postgres:
         condition: service_healthy
@@ -49,9 +54,12 @@ services:
     environment:
       TLS_DOMAIN: ${TLS_DOMAIN:-}
       TLS_EMAIL: ${TLS_EMAIL:-}
+      # Путь к CA PEM внутри контейнера; пусто + нет файла = mTLS выкл
+      MTLS_CA_FILE: ${MTLS_CA_FILE:-/etc/honeyforge/mtls/ca.crt}
     volumes:
       - ./nginx/www:/usr/share/nginx/html/site:ro
       - ./downloads:/usr/share/nginx/html/downloads:ro
+      - ./mtls:/etc/honeyforge/mtls:ro
       - hf_certs:/etc/letsencrypt
       - hf_certbot_www:/var/www/certbot
     depends_on:

@@ -101,10 +101,11 @@ ProfileCreateUsageText = (
     "[--service ssh|http|tcp_banner|postgres|redis|mysql] [--level low|medium] "
     "[--services postgres,redis,mysql] "
     "[--auth off|allow_all|allow_listed|second_attempt_sticky] "
-    "[--username U --password P] [--banner TEXT]"
+    "[--username U --password P] [--banner TEXT]; "
+    "или --name --level high --image-token vmi_..."
 )
 ProfileUpdateUsageText = "нужны --file и/или --name, --description"
-ProfileHighUnavailableText = "уровень high недоступен: блок emulation ещё не подключён"
+ProfileHighNeedsImageText = "для --level high нужен --image-token (см. vm-image-list)"
 ProfileHttpNeedsMediumText = "http, postgres, redis и mysql всегда medium"
 ProfileBannerNeedsLowText = "tcp_banner это только уровень low, без входа"
 ProfileServiceUnknownText = "сервис должен быть ssh, http, tcp_banner, postgres, redis или mysql"
@@ -129,6 +130,13 @@ TrapOwnerSetText = "Владелец ловушки обновлён."
 EventsTailHintText = "Слушаю SSE /api/v1/events/stream (Ctrl+C - стоп)..."
 
 EventsTailStoppedText = "events-tail остановлен."
+
+EventsExportSavedText = "Экспорт сохранён: {path} ({bytes} байт)"
+
+PersonalityPackListEmptyText = "Нет personality packs."
+PersonalityPackListHeaderText = "Personality packs:"
+SetupAskPersonalityPackText = "Пресет личности (Enter - без пресета)"
+SetupPersonalityPackTipText = "Пресет дозаполнит пустые banner/HTTP personality/mask. Список: personality-pack-list"
 
 WipeConfirmLogsText = "Удалить события и журнал аудита? (y/N)"
 WipeConfirmResetText = (
@@ -238,6 +246,24 @@ FsPackListHeaderText = "Пакеты файловой системы:"
 FsPackListEmptyText = "Пакетов пока нет"
 FsPackUploadedText = "Загружен {token} ({name}, {size})"
 FsPackDeletedText = "Удалён пакет {token}"
+
+VmImageListHeaderText = "Образы VM (OVA):"
+VmImageListEmptyText = "Образов пока нет - vm-image-upload --file disk.ova"
+VmImageUploadedText = "Загружен {token} ({name}, {size})"
+VmImageDeletedText = "Удалён образ {token}"
+TrapVmCommandText = "Команда vm_{action} поставлена в очередь ловушки {trap_id}"
+DeployHighVmNoteText = (
+	"High VM: на хосте ловушки нужны VirtualBox и VBoxManage в PATH "
+	"(агент импортирует OVA и управляет VM)."
+)
+SetupAskHighVmText = "High VirtualBox VM вместо medium-сервисов"
+SetupAskImageTokenText = "Токен образа (vmi_... из vm-image-list)"
+SetupAskVmNameText = "Имя VM в VirtualBox"
+SetupAskVmSnapshotText = "Имя snapshot (чистый)"
+SetupAskRdpHostPortText = "Порт RDP на хосте ловушки"
+SetupAskVmAutoStartText = "Стартовать VM после bind профиля"
+SetupHighNeedsImageText = "Сначала загрузите образ: vm-image-upload --file disk.ova"
+SetupHighConfiguredText = "High emulation: {vm_name} ← {image_token}"
 
 SetupStep3Header = "Этап 3/5 - Сокрытие трафика канала"
 
@@ -482,10 +508,12 @@ HelpText = """Команды HoneyForge CLI:
       [--username U --password P] [--banner TEXT]
       [--server S] [--auth-path /admin]
       [--delay-min MS --delay-max MS] [--sticky-ttl HOURS] [--no-shell]
+  profile-create --name N --level high --image-token vmi_...
+      [--vm-name hf-guest] [--snapshot clean] [--rdp-port 3389]
+      [--vm-cpus 2] [--vm-memory-mb 4096] [--no-auto-start]
   profile-update <id> [--file f.json] [--name N] [--description TEXT]
   profile-delete <id>          - удалить профиль
-  Уровень считается из модулей: баннер = low, вход/shell/http = medium.
-  high (emulation) пока не принимается.
+  Уровень: баннер = low, вход/shell/http = medium, emulation VM = high.
 
 Pairing / ловушки:
   pair-list [--status pending|confirmed|completed|expired|all]
@@ -493,6 +521,7 @@ Pairing / ловушки:
   traps-list                   - список ловушек и статусы
   trap-show <trap_id>
   trap-bind <trap_id> <profile_id>
+  trap-vm start|stop|revert|status|ensure --trap-id UUID
   trap-set-owner <trap_id> --user-id UUID
   trap-set-courier-ssh <trap_id> --host H --user U [--password P] [--port 22]
       [--data-dir /var/lib/metricsd]
@@ -507,6 +536,7 @@ Pairing / ловушки:
 События:
   events-list [--trap-id] [--type honeytoken_hit] [--source-ip] [--min-priority high|medium|low] [--limit N]
   events-chains [--trap-id] [--window-sec 3600]
+  events-export [--format csv|stix] [-o FILE] [--trap-id] [--type] [--source-ip] [--min-priority] [--since] [--until] [--limit]
   events-tail                  - realtime SSE-лента
   logs-clear [--yes]           - удалить события и журнал аудита
   db-reset [--yes]             - очистить профили, ловушки и логи
@@ -516,6 +546,17 @@ Pairing / ловушки:
   fs-pack-upload --file PATH [--name N]
   fs-pack-delete TOKEN
   В профиле shell.fs_pack = token (fsp_...) или ubuntu-22.04 / builtin.
+
+Образы VM (OVA для High / VirtualBox, в git не кладём):
+  vm-image-list
+  vm-image-upload --file PATH.ova [--name N]
+  vm-image-delete TOKEN
+  В профиле blocks.emulation.image_token = vmi_...
+  На хосте ловушки: VirtualBox + VBoxManage.
+
+Personality packs (пресеты banner/HTTP/mask):
+  personality-pack-list
+  В профиле mask.service_personality = ключ (ubuntu-22.04-ssh, nginx-ops-portal, ...)
 
 При старте CLI: логин и пароль (bootstrap из .env центра: OPERATOR_USERNAME / OPERATOR_PASSWORD).
 API_BASE задаётся в .env (по умолчанию http://127.0.0.1:8000).

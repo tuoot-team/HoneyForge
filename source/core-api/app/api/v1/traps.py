@@ -68,6 +68,27 @@ def set_Trap_Owner(
 	return out
 
 
+@router.post("/{trap_id}/vm/{action}", response_model=TrapOut)
+def trap_Vm_Action(
+	db: DbSession,
+	trap_id: UUID,
+	action: str,
+	operator: CurrentUser = Depends(require_Permission(PERM_TRAPS_WRITE)),
+) -> TrapOut:
+	"""action: ensure|start|stop|revert|status → команда vm_* в очередь агента."""
+	command_type = f"vm_{action}" if not action.startswith("vm_") else action
+	out = trap_service.enqueue_Trap_Vm_Command(db, operator, trap_id, command_type)
+	rbac_service.write_Audit(
+		db,
+		actor=operator.username,
+		action="trap.vm_command",
+		resource_type="trap",
+		resource_id=str(trap_id),
+		payload={"command_type": command_type},
+	)
+	return out
+
+
 @router.patch("/{trap_id}/courier-ssh")
 def set_Trap_Courier_Ssh(
 	db: DbSession,

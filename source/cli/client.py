@@ -87,6 +87,40 @@ def request_Api(
 	return response.json()
 
 
+def request_Api_Text(
+	method: str,
+	path: str,
+	*,
+	params: dict | None = None,
+	auth: bool = True,
+	timeout: float = 60.0,
+	accept: str = "*/*",
+) -> str:
+	"""Сырой текст ответа (CSV / STIX), не JSON."""
+	url = get_BaseUrl() + path
+	headers: dict[str, str] = {"Accept": accept}
+	if auth:
+		token = get_Token()
+		if not token:
+			raise ApiError("нет ACCESS_TOKEN - сначала login")
+		headers["Authorization"] = f"Bearer {token}"
+	if is_Debug():
+		print(f"[DEBUG] {method} {url}")
+	try:
+		response = httpx.request(method, url, headers=headers, params=params, timeout=timeout)
+	except httpx.HTTPError as exc:
+		raise ApiError(f"сеть: {type(exc).__name__}: {exc}") from exc
+	if response.status_code >= 400:
+		detail = response.text
+		try:
+			payload = response.json()
+			detail = str(payload.get("detail", payload))
+		except Exception:
+			pass
+		raise ApiError(detail, status_code=response.status_code)
+	return response.text
+
+
 class SseStream:
 
 	def __init__(self, path: str, *, auth: bool = True):
@@ -409,6 +443,34 @@ def list_Event_Chains(*, trap_id: str | None = None, window_sec: int = 3600) -> 
 	return request_Api("GET", "/api/v1/events/chains", params=params)
 
 
+def export_Events(
+	*,
+	fmt: str = "csv",
+	trap_id: str | None = None,
+	event_type: str | None = None,
+	source_ip: str | None = None,
+	min_priority: str | None = None,
+	since: str | None = None,
+	until: str | None = None,
+	limit: int = 5000,
+) -> str:
+	params: dict[str, Any] = {"format": fmt, "limit": limit}
+	if trap_id:
+		params["trap_id"] = trap_id
+	if event_type:
+		params["event_type"] = event_type
+	if source_ip:
+		params["source_ip"] = source_ip
+	if min_priority:
+		params["min_priority"] = min_priority
+	if since:
+		params["since"] = since
+	if until:
+		params["until"] = until
+	accept = "application/stix+json" if fmt == "stix" else "text/csv"
+	return request_Api_Text("GET", "/api/v1/events/export", params=params, accept=accept)
+
+
 def stream_Events() -> SseStream:
 	return stream_Api("/api/v1/events/stream")
 
@@ -443,6 +505,10 @@ def deploy_Agent(
 
 def list_FsPacks() -> dict:
 	return request_Api("GET", "/api/v1/fs-packs/")
+
+
+def list_PersonalityPacks() -> dict:
+	return request_Api("GET", "/api/v1/personality-packs/")
 
 
 def upload_FsPack(path: str, name: str | None = None, *, timeout: float = 120.0) -> dict:
@@ -484,3 +550,52 @@ def upload_FsPack(path: str, name: str | None = None, *, timeout: float = 120.0)
 
 def delete_FsPack(token: str) -> None:
 	request_Api("DELETE", f"/api/v1/fs-packs/{token}")
+
+
+def list_VmImages() -> dict:
+	return request_Api("GET", "/api/v1/vm-images/")
+
+
+def upload_VmImage(path: str, name: str | None = None, *, timeout: float = 3600.0) -> dict:
+	url = get_BaseUrl() + "/api/v1/vm-images/"
+	headers: dict[str, str] = {"Accept": "application/json"}
+	token = get_Token()
+	if not token:
+		raise ApiError("нет ACCESS_TOKEN - сначала login")
+	headers["Authorization"] = f"Bearer {token}"
+	if is_Debug():
+		print(f"[DEBUG] POST {url}")
+	data: dict[str, str] = {}
+	if name:
+		data["name"] = name
+	try:
+		with open(path, "rb") as handle:
+			files = {"file": (os.path.basename(path), handle)}
+			response = httpx.post(
+				url,
+				headers=headers,
+				data=data or None,
+				files=files,
+				timeout=timeout,
+			)
+	except OSError as exc:
+		raise ApiError(f"файл: {exc}") from exc
+	except httpx.HTTPError as exc:
+		raise ApiError(f"сеть: {type(exc).__name__}: {exc}") from exc
+	if response.status_code >= 400:
+		detail = response.text
+		try:
+			payload = response.json()
+			detail = str(payload.get("detail", payload))
+		except Exception:
+			pass
+		raise ApiError(detail, status_code=response.status_code)
+	return response.json()
+
+
+def delete_VmImage(token: str) -> None:
+	request_Api("DELETE", f"/api/v1/vm-images/{token}")
+
+
+def trap_Vm_Action(trap_id: str, action: str) -> dict:
+	return request_Api("POST", f"/api/v1/traps/{trap_id}/vm/{action}")

@@ -4,8 +4,11 @@ import shlex
 from colorama import Fore, Style
 
 from commands.auth import cmd_Health, cmd_Logout, cmd_Me
-from commands.events import cmd_EventsChains, cmd_EventsList, cmd_EventsTail
+from commands.events import cmd_EventsChains, cmd_EventsExport, cmd_EventsList, cmd_EventsTail
 from commands.fs_packs import cmd_FsPackDelete, cmd_FsPackList, cmd_FsPackUpload
+from commands.vm_images import cmd_VmImageDelete, cmd_VmImageList, cmd_VmImageUpload
+from commands.trap_vm import cmd_TrapVm
+from commands.personality_packs import cmd_PersonalityPackList
 from commands.maintenance import cmd_DbReset, cmd_LogsClear
 from commands.roles import (
 	cmd_RoleCreate,
@@ -138,7 +141,7 @@ def create_parser() -> argparse.ArgumentParser:
 	p_pc = sub.add_parser("profile-create", help="создать профиль из слотов сервиса")
 	p_pc.add_argument("--file", help="JSON-файл тела ProfileCreate")
 	p_pc.add_argument("--name", help="имя (если без --file)")
-	p_pc.add_argument("--level", choices=["low", "medium", "high"], help="low=баннер, medium=вход/shell/http")
+	p_pc.add_argument("--level", choices=["low", "medium", "high"], help="low=баннер, medium=вход/shell/http, high=VM")
 	p_pc.add_argument("--port", type=int, help="порт сервиса")
 	p_pc.add_argument(
 		"--service",
@@ -164,6 +167,13 @@ def create_parser() -> argparse.ArgumentParser:
 	p_pc.add_argument("--delay-max", dest="delay_max", type=int, help="макс. задержка входа, мс")
 	p_pc.add_argument("--sticky-ttl", dest="sticky_ttl", type=int, help="TTL привязки IP, часы")
 	p_pc.add_argument("--no-shell", dest="no_shell", action="store_true", help="SSH: вход без shell")
+	p_pc.add_argument("--image-token", dest="image_token", help="High: token образа vmi_...")
+	p_pc.add_argument("--vm-name", dest="vm_name", default="hf-guest", help="High: имя VM")
+	p_pc.add_argument("--snapshot", dest="snapshot", default="clean", help="High: snapshot")
+	p_pc.add_argument("--rdp-port", dest="rdp_port", type=int, default=3389, help="High: RDP host port")
+	p_pc.add_argument("--vm-cpus", dest="vm_cpus", type=int, default=2, help="High: CPU")
+	p_pc.add_argument("--vm-memory-mb", dest="vm_memory_mb", type=int, default=4096, help="High: RAM MiB")
+	p_pc.add_argument("--no-auto-start", dest="no_auto_start", action="store_true", help="High: не стартовать VM при bind")
 	p_pc.add_argument("--description", default="", help="описание")
 	p_pc.set_defaults(func=cmd_ProfileCreate)
 
@@ -204,6 +214,15 @@ def create_parser() -> argparse.ArgumentParser:
 	p_tb.add_argument("trap_id")
 	p_tb.add_argument("profile_id")
 	p_tb.set_defaults(func=cmd_TrapBind)
+
+	p_tvm = sub.add_parser("trap-vm", help="команда VirtualBox VM на ловушке")
+	p_tvm.add_argument(
+		"action",
+		choices=["ensure", "start", "stop", "revert", "status"],
+		help="vm_ensure|start|stop|revert|status",
+	)
+	p_tvm.add_argument("--trap-id", dest="trap_id", required=True, help="UUID ловушки")
+	p_tvm.set_defaults(func=cmd_TrapVm)
 
 	p_to = sub.add_parser("trap-set-owner", help="назначить владельца ловушки")
 	p_to.add_argument("trap_id")
@@ -263,6 +282,23 @@ def create_parser() -> argparse.ArgumentParser:
 	p_ec.add_argument("--window-sec", dest="window_sec", type=int, default=3600)
 	p_ec.set_defaults(func=cmd_EventsChains)
 
+	p_ex = sub.add_parser("events-export", help="IoC-выгрузка CSV или STIX")
+	p_ex.add_argument("--format", dest="format", default="csv", choices=["csv", "stix"])
+	p_ex.add_argument("-o", "--output", dest="output", default="", help="файл (иначе stdout)")
+	p_ex.add_argument("--trap-id", dest="trap_id", default=None)
+	p_ex.add_argument("--type", dest="type", default=None)
+	p_ex.add_argument("--source-ip", dest="source_ip", default=None)
+	p_ex.add_argument(
+		"--min-priority",
+		dest="min_priority",
+		default=None,
+		choices=["low", "medium", "high"],
+	)
+	p_ex.add_argument("--since", dest="since", default=None, help="ISO дата начала")
+	p_ex.add_argument("--until", dest="until", default=None, help="ISO дата конца")
+	p_ex.add_argument("--limit", type=int, default=5000)
+	p_ex.set_defaults(func=cmd_EventsExport)
+
 	p_et = sub.add_parser("events-tail", help="SSE-лента событий (Ctrl+C стоп)")
 	p_et.set_defaults(func=cmd_EventsTail)
 
@@ -285,6 +321,21 @@ def create_parser() -> argparse.ArgumentParser:
 	p_fpd = sub.add_parser("fs-pack-delete", help="удалить пакет FS")
 	p_fpd.add_argument("token", help="token пакета fsp_...")
 	p_fpd.set_defaults(func=cmd_FsPackDelete)
+
+	p_vil = sub.add_parser("vm-image-list", help="список образов VM (OVA)")
+	p_vil.set_defaults(func=cmd_VmImageList)
+
+	p_viu = sub.add_parser("vm-image-upload", help="загрузить OVA в реестр центра")
+	p_viu.add_argument("--file", required=True, help="путь к .ova / .vdi / .vmdk")
+	p_viu.add_argument("--name", default="", help="имя образа")
+	p_viu.set_defaults(func=cmd_VmImageUpload)
+
+	p_vid = sub.add_parser("vm-image-delete", help="удалить образ VM")
+	p_vid.add_argument("token", help="token образа vmi_...")
+	p_vid.set_defaults(func=cmd_VmImageDelete)
+
+	p_ppl = sub.add_parser("personality-pack-list", help="список personality packs")
+	p_ppl.set_defaults(func=cmd_PersonalityPackList)
 
 	return parser
 

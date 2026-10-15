@@ -6,6 +6,7 @@ import urllib.parse
 import client
 from texts import (
 	DeployBadCenterText,
+	DeployHighVmNoteText,
 	DeployNoDeviceCodeText,
 	DeployPairNextText,
 	MsgApiError,
@@ -13,6 +14,7 @@ from texts import (
 	SetupSshCodeText,
 	SetupSshConnectingText,
 	print_OpsLine,
+	print_Attention,
 )
 
 _LOOPBACK = {"127.0.0.1", "localhost", "::1", "0.0.0.0"}
@@ -93,3 +95,4 @@ def cmd_Deploy(args) -> None:
 		return
 	print(Fore.GREEN + SetupSshCodeText.format(code=code) + Style.RESET_ALL)
 	print_OpsLine("дальше", DeployPairNextText.format(code=code))
+	print_Attention(DeployHighVmNoteText)

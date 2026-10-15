@@ -21,6 +21,7 @@ import (
 	"metricsd/internal/model"
 	"metricsd/internal/state"
 	"metricsd/internal/texts"
+	"metricsd/internal/vm"
 )
 
 const (
@@ -57,6 +58,11 @@ func New_Agent(root string) (*Agent, error) {
 	if err != nil {
 		return nil, err
 	}
+	ac, err := client.New_AgentClient(base, debug)
+	if err != nil {
+		_ = eb.Close()
+		return nil, err
+	}
 	return &Agent{
 		BaseURL:     base,
 		Debug:       debug,
@@ -64,7 +70,7 @@ func New_Agent(root string) (*Agent, error) {
 		StatePath:   config.Get_StatePath(root),
 		BufferPath:  bufPath,
 		HostKeyPath: filepath.Join(dataDir, ".ssh_host_key"),
-		Client:      client.New_AgentClient(base, debug),
+		Client:      ac,
 		Buffer:      eb,
 		AuthStore:   agentauth.New_Store(filepath.Join(dataDir, "auth_state.json")),
 	}, nil
@@ -300,13 +306,8 @@ func (a *Agent) claim_Loop_Interval(ctx context.Context, every time.Duration) {
 			if a.Debug {
 				println("[DEBUG] claim:", err.Error())
 			}
-		} else if out.Command != nil && out.Command.CommandType == "reload_config" {
-			fmt.Println(texts.MsgAgentReload)
-			if err := a.Load_Config(); err != nil {
-				fmt.Printf("[WARN] reload_config: %v\n", err)
-			} else {
-				a.restart_Services(ctx)
-			}
+		} else if out.Command != nil {
+			a.handle_Command(ctx, out.Command.ID, out.Command.CommandType)
 		}
 		select {
 		case <-ctx.Done():
@@ -314,6 +315,87 @@ func (a *Agent) claim_Loop_Interval(ctx context.Context, every time.Duration) {
 		case <-time.After(every):
 		}
 	}
+}
+
+func (a *Agent) handle_Command(ctx context.Context, commandID, commandType string) {
+	switch {
+	case commandType == "reload_config":
+		fmt.Println(texts.MsgAgentReload)
+		err := a.Load_Config()
+		if err != nil {
+			fmt.Printf("[WARN] reload_config: %v\n", err)
+			_ = a.Client.Ack_Command(commandID, false, err.Error())
+			return
+		}
+		a.restart_Services(ctx)
+		_ = a.Client.Ack_Command(commandID, true, "reloaded")
+	case strings.HasPrefix(commandType, "vm_"):
+		detail, err := a.run_Vm_Command(commandType)
+		ok := err == nil
+		if err != nil {
+			detail = err.Error()
+			fmt.Printf("[WARN] %s: %v\n", commandType, err)
+		} else {
+			fmt.Printf(texts.MsgVmCommand+"\n", commandType, detail)
+		}
+		_ = a.Client.Ack_Command(commandID, ok, detail)
+		a.emit_Vm_Event(commandType, ok, detail)
+	default:
+		if a.Debug {
+			println("[DEBUG] unknown command:", commandType)
+		}
+		_ = a.Client.Ack_Command(commandID, false, "unknown command: "+commandType)
+	}
+}
+
+func (a *Agent) run_Vm_Command(commandType string) (string, error) {
+	emu := a.profile_Snapshot().Blocks.Emulation
+	if !emu.Enabled && commandType != "vm_status" {
+		return "", fmt.Errorf("emulation.enabled=false")
+	}
+	mgr := vm.New_Manager(config.Get_DataDir(a.Root), a.Debug)
+	switch commandType {
+	case "vm_ensure":
+		if err := a.ensure_Vm_Image(mgr, emu); err != nil {
+			return "", err
+		}
+		return mgr.Ensure(emu)
+	case "vm_start":
+		return mgr.Start(emu)
+	case "vm_stop":
+		return mgr.Stop(emu)
+	case "vm_revert":
+		return mgr.Revert(emu)
+	case "vm_status":
+		return mgr.Status(emu)
+	default:
+		return "", fmt.Errorf("unknown vm command: %s", commandType)
+	}
+}
+
+func (a *Agent) ensure_Vm_Image(mgr *vm.Manager, emu model.EmulationBlock) error {
+	token := strings.TrimSpace(emu.ImageToken)
+	if token == "" {
+		return fmt.Errorf(texts.MsgVmImageTokenEmpty)
+	}
+	dest := mgr.ImageLocalPath(token)
+	if st, err := os.Stat(dest); err == nil && st.Size() > 0 {
+		return nil
+	}
+	fmt.Printf(texts.MsgVmDownload+"\n", token, dest)
+	return a.Client.Download_VmImage(token, dest)
+}
+
+func (a *Agent) emit_Vm_Event(commandType string, ok bool, detail string) {
+	emu := a.profile_Snapshot().Blocks.Emulation
+	a.On_Event(model.AgentEvent{
+		EventType: commandType,
+		Payload: map[string]any{
+			"vm_name": emu.VmName,
+			"ok":      ok,
+			"detail":  detail,
+		},
+	})
 }
 
 func (a *Agent) restart_Services(parent context.Context) {

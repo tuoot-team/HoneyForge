@@ -393,11 +393,32 @@ class HoneytokenBlock(BaseModel):
 	password: str = Field(default="", max_length=256)
 
 
+class EmulationExpose(BaseModel):
+	host_port: int = Field(ge=1, le=65535)
+	guest_port: int = Field(ge=1, le=65535)
+	proto: Literal["tcp", "udp"] = "tcp"
+
+
+class EmulationBlock(BaseModel):
+	"""High: VirtualBox VM на хосте-ловушке."""
+
+	enabled: bool = False
+	runtime: Literal["virtualbox"] = "virtualbox"
+	image_token: str = Field(default="", max_length=128)
+	vm_name: str = Field(default="hf-guest", min_length=1, max_length=128)
+	cpus: int = Field(default=2, ge=1, le=64)
+	memory_mb: int = Field(default=4096, ge=512, le=262144)
+	snapshot: str = Field(default="clean", max_length=128)
+	expose: list[EmulationExpose] = Field(default_factory=list)
+	auto_start: bool = True
+
+
 class ProfileBlocks(BaseModel):
 	services: list[ServiceBlock] = Field(default_factory=list)
 	credentials: list[CredentialBlock] = Field(default_factory=list)
 	baits: list[BaitBlock] = Field(default_factory=list)
 	honeytokens: list[HoneytokenBlock] = Field(default_factory=list)
+	emulation: EmulationBlock = Field(default_factory=EmulationBlock)
 	logging: LoggingBlock = Field(default_factory=LoggingBlock)
 	mask: MaskBlock = Field(default_factory=MaskBlock)
 
@@ -607,7 +628,9 @@ def _service_Level(service: ServiceBlock) -> InteractionLevel:
 
 
 def derive_InteractionLevel(blocks: ProfileBlocks) -> InteractionLevel:
-	"""Честный уровень: low = баннер, medium = auth/shell/http. High здесь не возникает."""
+	"""Честный уровень: low = баннер, medium = auth/shell/http, high = emulation VM."""
+	if blocks.emulation.enabled:
+		return InteractionLevel.high
 	rank = {InteractionLevel.low: 0, InteractionLevel.medium: 1, InteractionLevel.high: 2}
 	derived = InteractionLevel.low
 	for service in blocks.services:
@@ -622,8 +645,20 @@ def derive_InteractionLevel(blocks: ProfileBlocks) -> InteractionLevel:
 def assert_LevelMatches(level: InteractionLevel | str, blocks: ProfileBlocks) -> None:
 	declared = InteractionLevel(level)
 	if declared == InteractionLevel.high:
-		raise ValueError(MSG_PROFILE_HIGH_UNAVAILABLE)
+		if not blocks.emulation.enabled:
+			raise ValueError(MSG_PROFILE_HIGH_UNAVAILABLE)
+		if not str(blocks.emulation.image_token or "").strip():
+			raise ValueError(MSG_PROFILE_HIGH_UNAVAILABLE)
+		return
 	actual = derive_InteractionLevel(blocks)
+	if actual == InteractionLevel.high:
+		# medium/low нельзя объявить при включённой emulation
+		raise ValueError(
+			MSG_PROFILE_LEVEL_MISMATCH.format(
+				declared=declared.value,
+				actual=actual.value,
+			)
+		)
 	if declared != actual:
 		raise ValueError(
 			MSG_PROFILE_LEVEL_MISMATCH.format(

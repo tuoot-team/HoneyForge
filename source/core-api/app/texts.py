@@ -18,10 +18,12 @@ MSG_ROLE_SYSTEM_LOCKED = "системную роль нельзя менять 
 MSG_ROLE_IN_USE = "роль назначена пользователям, удалить нельзя"
 
 MSG_PROFILE_NOT_FOUND = "профиль не найден"
-MSG_PROFILE_HIGH_UNAVAILABLE = "уровень high недоступен: блок emulation ещё не подключён"
+MSG_PROFILE_HIGH_UNAVAILABLE = (
+	"уровень high требует blocks.emulation.enabled и существующий image_token (vmi_...)"
+)
 MSG_PROFILE_LEVEL_MISMATCH = (
 	"interaction_level={declared} не совпадает с модулями (фактически {actual}). "
-	"low - только баннер, medium - вход, shell, http или база"
+	"low - только баннер, medium - вход, shell, http или база, high - emulation VM"
 )
 MSG_PROFILE_DUP_PORT = "порты включённых сервисов должны быть уникальными"
 MSG_PROFILE_DUP_SERVICE_ID = "id сервисов должны быть уникальными"
@@ -36,6 +38,7 @@ MSG_PROFILE_SSH_BANNER = "у SSH модуль banner обязателен: эт�
 MSG_PROFILE_SSH_SHELL_AUTH = "SSH shell требует включённый auth"
 MSG_PROFILE_AUTH_LIST = "режим allow_listed требует непустой credential_ids"
 MSG_PROFILE_DELAY = "delay_ms_max должен быть не меньше delay_ms_min"
+MSG_PERSONALITY_PACK_NOT_FOUND = "personality pack не найден: {key}"
 MSG_TRAP_NOT_FOUND = "ловушка не найдена"
 MSG_PAIRING_NOT_FOUND = "сессия pairing не найдена"
 MSG_PAIRING_EXPIRED = "код pairing истёк"
@@ -78,3 +81,10 @@ MSG_FS_PACK_BAD_FORMAT = "нужен архив .zip или .tar.gz / .tgz"
 MSG_FS_PACK_EMPTY = "пустой файл архива"
 MSG_FS_PACK_UNKNOWN = "shell.fs_pack ссылается на неизвестный пакет: {token}"
 MSG_FS_PACK_BAD_NAME = "нужно имя пакета"
+MSG_VM_IMAGE_NOT_FOUND = "образ VM не найден"
+MSG_VM_IMAGE_TOO_LARGE = "образ больше {limit_gib} GiB"
+MSG_VM_IMAGE_BAD_FORMAT = "нужен файл .ova / .vdi / .vmdk"
+MSG_VM_IMAGE_EMPTY = "пустой файл образа"
+MSG_VM_IMAGE_UNKNOWN = "emulation.image_token ссылается на неизвестный образ: {token}"
+MSG_VM_IMAGE_BAD_NAME = "нужно имя образа"
+MSG_TRAP_COMMAND_NOT_FOUND = "команда ловушки не найдена"

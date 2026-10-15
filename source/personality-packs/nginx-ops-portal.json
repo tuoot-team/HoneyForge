@@ -1,0 +1,31 @@
+{
+	"key": "nginx-ops-portal",
+	"title": "Nginx ops portal + OpenSSH companion",
+	"mask": {
+		"decoy_content_seed": "ops-portal-01",
+		"mimicry": {
+			"enabled": true,
+			"user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+			"tls_fingerprint_profile": "browser-like"
+		},
+		"process_mask": {
+			"enabled": true,
+			"name": "metricsd"
+		}
+	},
+	"service_defaults": {
+		"ssh": {
+			"banner_version": "SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.6"
+		},
+		"http": {
+			"server": "nginx/1.24.0",
+			"title": "Internal Portal",
+			"headers": {
+				"X-Frame-Options": "SAMEORIGIN"
+			}
+		},
+		"postgres": {
+			"banner_version": "14.10 (Ubuntu 14.10-0ubuntu0.22.04.1)"
+		}
+	}
+}

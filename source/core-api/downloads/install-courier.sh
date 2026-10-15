@@ -68,10 +68,18 @@ fi
 mv -f "$tmp_path" "$bin_path"
 chmod +x "$bin_path"
 
-cat > "${dest}/.env" <<EOF
-API_BASE=${center}
-DEBUG=false
-EOF
+{
+	echo "API_BASE=${center}"
+	echo "DEBUG=false"
+	# Опциональный mTLS: задайте TLS_CLIENT_* при установке или допишите в .env вручную.
+	if [ -n "${TLS_CLIENT_CERT:-}" ] && [ -n "${TLS_CLIENT_KEY:-}" ]; then
+		echo "TLS_CLIENT_CERT=${TLS_CLIENT_CERT}"
+		echo "TLS_CLIENT_KEY=${TLS_CLIENT_KEY}"
+	fi
+	if [ -n "${TLS_CA:-}" ]; then
+		echo "TLS_CA=${TLS_CA}"
+	fi
+} > "${dest}/.env"
 
 echo "${msg_Installed}${dest}"
 echo "$msg_Next"

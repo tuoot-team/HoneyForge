@@ -33,7 +33,7 @@ def get_ProfileSchema() -> ProfileSchemaDoc:
 	)
 	return ProfileSchemaDoc(
 		interaction_levels=[level.value for level in InteractionLevel],
-		block_keys=["services", "credentials", "baits", "honeytokens", "logging", "mask"],
+		block_keys=["services", "credentials", "baits", "honeytokens", "emulation", "logging", "mask"],
 		service_types=["ssh", "http", "tcp_banner", "postgres", "redis", "mysql"],
 		auth_modes=[mode.value for mode in AuthMode],
 		mask_methods=[

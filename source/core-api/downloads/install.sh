@@ -17,6 +17,7 @@ msg_NeedFetch="Нужен curl или wget, чтобы скачать агент
 msg_Downloading="Скачиваю агент: "
 msg_Installed="Агент установлен в "
 msg_Next="Дальше агент запросит код. Подтверди его в CLI: pair-confirm <код>"
+msg_HighVm="High VM: на этом хосте нужны VirtualBox и VBoxManage в PATH."
 msg_ManualStart="Запуск вручную: "
 
 center="${API_BASE:-}"
@@ -70,13 +71,22 @@ fi
 mv -f "$tmp_path" "$agent_path"
 chmod +x "$agent_path"
 
-cat > "${dest}/.env" <<EOF
-API_BASE=${center}
-DEBUG=false
-EOF
+{
+	echo "API_BASE=${center}"
+	echo "DEBUG=false"
+	# Опциональный mTLS: задайте TLS_CLIENT_* при установке или допишите в .env вручную.
+	if [ -n "${TLS_CLIENT_CERT:-}" ] && [ -n "${TLS_CLIENT_KEY:-}" ]; then
+		echo "TLS_CLIENT_CERT=${TLS_CLIENT_CERT}"
+		echo "TLS_CLIENT_KEY=${TLS_CLIENT_KEY}"
+	fi
+	if [ -n "${TLS_CA:-}" ]; then
+		echo "TLS_CA=${TLS_CA}"
+	fi
+} > "${dest}/.env"
 
 echo "${msg_Installed}${dest}"
 echo "$msg_Next"
+echo "$msg_HighVm"
 if [ "${HF_NO_START:-}" = "1" ]; then
 	echo "${msg_ManualStart}${agent_path}"
 	exit 0

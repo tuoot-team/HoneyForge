@@ -17,7 +17,7 @@ from texts import (
 	ProfileDelayOrderText,
 	ProfileDelayPairText,
 	ProfileDeletedText,
-	ProfileHighUnavailableText,
+	ProfileHighNeedsImageText,
 	ProfileHttpNeedsMediumText,
 	ProfileListedNeedsCredsText,
 	ProfileOnePortText,
@@ -117,10 +117,47 @@ def _http_Routes(auth_path: str) -> list[dict]:
 	return routes
 
 
+def _build_HighBody(args) -> dict:
+	token = (getattr(args, "image_token", None) or "").strip()
+	if not token:
+		raise ValueError(ProfileHighNeedsImageText)
+	rdp = int(getattr(args, "rdp_port", None) or 3389)
+	return {
+		"name": args.name,
+		"description": args.description or "",
+		"interaction_level": "high",
+		"blocks": {
+			"services": [],
+			"credentials": [],
+			"baits": [],
+			"honeytokens": [],
+			"emulation": {
+				"enabled": True,
+				"runtime": "virtualbox",
+				"image_token": token,
+				"vm_name": (getattr(args, "vm_name", None) or "hf-guest").strip() or "hf-guest",
+				"cpus": int(getattr(args, "vm_cpus", None) or 2),
+				"memory_mb": int(getattr(args, "vm_memory_mb", None) or 4096),
+				"snapshot": (getattr(args, "snapshot", None) or "clean").strip() or "clean",
+				"expose": [
+					{"host_port": rdp, "guest_port": 3389, "proto": "tcp"},
+				],
+				"auto_start": not bool(getattr(args, "no_auto_start", False)),
+			},
+			"logging": {
+				"capture_credentials": True,
+				"capture_payloads": True,
+				"capture_source_meta": True,
+			},
+			"mask": {},
+		},
+	}
+
+
 def _build_SimpleBody(args) -> dict:
 	level_arg = (args.level or "").lower()
 	if level_arg == "high":
-		raise ValueError(ProfileHighUnavailableText)
+		return _build_HighBody(args)
 	service_name = (args.service or "ssh").lower()
 	if service_name == "https":
 		service_name = "http"
@@ -301,7 +338,7 @@ def _build_MultiBody(args) -> dict:
 	_assert_UniquePorts([(name, DEFAULT_PORTS[name]) for name in names])
 	level_arg = (args.level or "").lower()
 	if level_arg == "high":
-		raise ValueError(ProfileHighUnavailableText)
+		raise ValueError(ProfileHighNeedsImageText + " (используй profile-create --level high без --services)")
 	credentials, credential_ids = _credential_Pair(args, "shared")
 	services = []
 	derived = "low"
@@ -359,6 +396,11 @@ def cmd_ProfileCreate(args) -> None:
 				print(Fore.RED + ProfileServicesNeedNameText + Style.RESET_ALL)
 				return
 			body = _build_MultiBody(args)
+		elif (args.level or "").lower() == "high":
+			if not args.name:
+				print(Fore.RED + ProfileCreateUsageText + Style.RESET_ALL)
+				return
+			body = _build_HighBody(args)
 		else:
 			if not args.name or not args.port:
 				print(Fore.RED + ProfileCreateUsageText + Style.RESET_ALL)

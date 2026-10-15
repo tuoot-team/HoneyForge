@@ -47,8 +47,24 @@ def paint_Level(level: str | None) -> str:
 
 def paint_EventType(event_type: str | None) -> str:
 	raw = event_type or "?"
-	hot = ("auth_attempt", "login", "credential", "db_command", "shell_command", "honeytoken_hit")
-	warm = ("http_request", "banner_grab", "port_connect")
+	hot = (
+		"auth_attempt",
+		"login",
+		"credential",
+		"db_command",
+		"shell_command",
+		"honeytoken_hit",
+		"vm_stop",
+		"vm_revert",
+	)
+	warm = (
+		"http_request",
+		"banner_grab",
+		"port_connect",
+		"vm_ensure",
+		"vm_start",
+		"vm_status",
+	)
 	if any(k in raw for k in hot):
 		color = Fore.RED + Style.BRIGHT
 	elif any(k in raw for k in warm):

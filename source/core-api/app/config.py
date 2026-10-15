@@ -5,6 +5,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Каталог пакетов рядом с app/../fs-packs
 _DEFAULT_FS_PACKS_DIR = str(Path(__file__).resolve().parents[1] / "fs-packs")
+# Builtin personality packs: source/personality-packs (рядом с core-api)
+_DEFAULT_PERSONALITY_PACKS_DIR = str(
+	Path(__file__).resolve().parents[2] / "personality-packs"
+)
+_DEFAULT_VM_IMAGES_DIR = str(Path(__file__).resolve().parents[1] / "vm-images")
 
 
 class Settings(BaseSettings):
@@ -37,6 +42,10 @@ class Settings(BaseSettings):
 
 	FS_PACKS_DIR: str = _DEFAULT_FS_PACKS_DIR
 	FS_PACK_MAX_BYTES: int = 32 * 1024 * 1024
+	PERSONALITY_PACKS_DIR: str = _DEFAULT_PERSONALITY_PACKS_DIR
+	VM_IMAGES_DIR: str = _DEFAULT_VM_IMAGES_DIR
+	# OVA могут быть большими; лимит по умолчанию 80 GiB
+	VM_IMAGES_MAX_BYTES: int = 80 * 1024 * 1024 * 1024
 
 	@property
 	def database_url(self) -> str:

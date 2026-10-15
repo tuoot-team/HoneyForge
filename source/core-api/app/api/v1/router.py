@@ -11,10 +11,12 @@ from app.api.v1 import (
 	health,
 	maintenance,
 	pairing,
+	personality_packs,
 	profiles,
 	roles,
 	traps,
 	users,
+	vm_images,
 )
 
 api_v1_router = APIRouter(prefix="/api/v1")
@@ -31,6 +33,8 @@ api_v1_router.include_router(events.router)
 api_v1_router.include_router(maintenance.router)
 api_v1_router.include_router(deploy.router)
 api_v1_router.include_router(fs_packs.router)
+api_v1_router.include_router(personality_packs.router)
+api_v1_router.include_router(vm_images.router)
 
 # mimicry коллектора на корне приложения монтируется отдельно в main
 collector_router = collector.router

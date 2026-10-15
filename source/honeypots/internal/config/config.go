@@ -31,6 +31,19 @@ func Get_BaseUrl() string {
 	return strings.TrimRight(base, "/")
 }
 
+// Get_TLSClientCert / Get_TLSClientKey / Get_TLSCA - опциональный mTLS к центру.
+func Get_TLSClientCert() string {
+	return strings.TrimSpace(os.Getenv("TLS_CLIENT_CERT"))
+}
+
+func Get_TLSClientKey() string {
+	return strings.TrimSpace(os.Getenv("TLS_CLIENT_KEY"))
+}
+
+func Get_TLSCA() string {
+	return strings.TrimSpace(os.Getenv("TLS_CA"))
+}
+
 // Get_DataDir: в репо (есть go.mod) - корень модуля; у задеплоенного бинаря - папка рядом с ним.
 func Get_DataDir(root string) string {
 	if _, err := os.Stat(filepath.Join(root, "go.mod")); err == nil {

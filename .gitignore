@@ -3,6 +3,8 @@
 **/.env
 !.env.example
 !**/.env.example
+source/core-api/mtls/*
+!source/core-api/mtls/.gitkeep
 
 # python
 __pycache__/
@@ -45,4 +47,17 @@ source/core-api/downloads/agent
 source/core-api/downloads/agent.exe
 source/core-api/downloads/courier
 source/honeypots/.fs_packs/
+source/honeypots/vm-images/
 source/core-api/fs-packs/
+source/core-api/vm-images/
+
+# High VM images (фаза 6b) - бинарники не в git
+source/high-vm/inbox/*
+!source/high-vm/inbox/.gitkeep
+*.ova
+*.vdi
+*.vmdk
+*.qcow2
+*.vhd
+*.vhdx
+*.ova.part

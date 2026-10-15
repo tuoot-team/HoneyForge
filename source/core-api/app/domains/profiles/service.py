@@ -9,6 +9,11 @@ from sqlalchemy.orm import Session
 
 from app.db import models
 from app.domains.fs_packs.service import assert_FsPacksExist
+from app.domains.personality_packs.service import (
+	apply_PersonalityPack,
+	assert_PersonalityPackExists,
+)
+from app.domains.vm_images.service import assert_VmImageExists
 from app.domains.profiles.schemas import (
 	ProfileBlocks,
 	ProfileCreate,
@@ -53,7 +58,10 @@ def get_Profile(db: Session, profile_id: UUID) -> ProfileOut:
 
 def create_Profile(db: Session, body: ProfileCreate) -> ProfileOut:
 	assert_FsPacksExist(db, body.blocks)
-	blocks_dict = _blocks_ToDict(body.blocks)
+	assert_PersonalityPackExists(body.blocks)
+	assert_VmImageExists(db, body.blocks)
+	merged = apply_PersonalityPack(body.blocks)
+	blocks_dict = _blocks_ToDict(merged)
 	version = 1
 	config_hash = compute_ConfigHash(
 		json.dumps(blocks_dict, sort_keys=True, ensure_ascii=False),
@@ -98,6 +106,9 @@ def update_Profile(db: Session, profile_id: UUID, body: ProfileUpdate) -> Profil
 				detail=str(exc),
 			) from exc
 		assert_FsPacksExist(db, next_blocks)
+		assert_PersonalityPackExists(next_blocks)
+		assert_VmImageExists(db, next_blocks)
+		next_blocks = apply_PersonalityPack(next_blocks)
 
 	if body.name is not None:
 		row.name = body.name
@@ -106,7 +117,7 @@ def update_Profile(db: Session, profile_id: UUID, body: ProfileUpdate) -> Profil
 	if body.interaction_level is not None:
 		row.interaction_level = body.interaction_level.value
 	if body.blocks is not None:
-		row.blocks = _blocks_ToDict(body.blocks)
+		row.blocks = _blocks_ToDict(next_blocks)
 
 	row.config_version = int(row.config_version) + 1
 	row.config_hash = compute_ConfigHash(

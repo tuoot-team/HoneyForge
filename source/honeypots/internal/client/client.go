@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
 	"metricsd/internal/model"
 	"metricsd/internal/texts"
+	"metricsd/internal/tlsutil"
 )
 
 const (
@@ -22,7 +24,9 @@ const (
 	PathAgentHeartbeat     = "/api/v1/agent/heartbeat"
 	PathAgentEvents        = "/api/v1/agent/events"
 	PathAgentCommandsClaim = "/api/v1/agent/commands/claim"
+	PathAgentCommandsAck   = "/api/v1/agent/commands/%s/ack"
 	PathAgentFsPack        = "/api/v1/agent/fs-packs/%s"
+	PathAgentVmImage       = "/api/v1/agent/vm-images/%s"
 )
 
 type AgentClient struct {
@@ -34,14 +38,16 @@ type AgentClient struct {
 	pathCursor int
 }
 
-func New_AgentClient(baseURL string, debug bool) *AgentClient {
-	return &AgentClient{
-		BaseURL: strings.TrimRight(baseURL, "/"),
-		Debug:   debug,
-		HTTPClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+func New_AgentClient(baseURL string, debug bool) (*AgentClient, error) {
+	httpClient, err := tlsutil.New_HTTPClient(30 * time.Second)
+	if err != nil {
+		return nil, err
 	}
+	return &AgentClient{
+		BaseURL:    strings.TrimRight(baseURL, "/"),
+		Debug:      debug,
+		HTTPClient: httpClient,
+	}, nil
 }
 
 func (c *AgentClient) debug_Log(message string) {
@@ -267,6 +273,76 @@ func (c *AgentClient) Claim_Commands() (*model.ClaimOut, error) {
 	return &out, nil
 }
 
+func (c *AgentClient) Ack_Command(commandID string, ok bool, detail string) error {
+	path := fmt.Sprintf(PathAgentCommandsAck, commandID)
+	body := map[string]any{"ok": ok, "detail": detail}
+	_, err := c.request_JSON(http.MethodPost, path, body, true)
+	return err
+}
+
+// Download_VmImage - поток OVA на диск (крупные файлы, не в память).
+func (c *AgentClient) Download_VmImage(token, destPath string) error {
+	path := fmt.Sprintf(PathAgentVmImage, token)
+	url := c.BaseURL + path
+	c.debug_Log(fmt.Sprintf(texts.MsgDebugRequest, http.MethodGet, url))
+
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	hdr, err := c.headers(true)
+	if err != nil {
+		return err
+	}
+	req.Header = hdr
+	req.Header.Set("Accept", "application/octet-stream")
+
+	client := c.HTTPClient
+	if client == nil {
+		var errClient error
+		client, errClient = tlsutil.New_HTTPClient(30 * time.Minute)
+		if errClient != nil {
+			return errClient
+		}
+	} else {
+		// Копия с длинным таймаутом для больших OVA.
+		cloned := *client
+		cloned.Timeout = 30 * time.Minute
+		client = &cloned
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 500))
+		return fmt.Errorf(texts.MsgErrHTTP, resp.StatusCode, string(raw))
+	}
+
+	tmp := destPath + ".part"
+	out, err := os.Create(tmp)
+	if err != nil {
+		return err
+	}
+	_, copyErr := io.Copy(out, resp.Body)
+	closeErr := out.Close()
+	if copyErr != nil {
+		_ = os.Remove(tmp)
+		return copyErr
+	}
+	if closeErr != nil {
+		_ = os.Remove(tmp)
+		return closeErr
+	}
+	if err := os.Rename(tmp, destPath); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
+}
+
 func (c *AgentClient) Get_FsPackBytes(token string) ([]byte, error) {
 	path := fmt.Sprintf(PathAgentFsPack, token)
 	url := c.BaseURL + path
@@ -283,10 +359,14 @@ func (c *AgentClient) Get_FsPackBytes(token string) ([]byte, error) {
 	req.Header = hdr
 	req.Header.Set("Accept", "application/octet-stream")
 
-	// Архив до 32 MiB - даём запас по таймауту
+	// Архив до 32 MiB - даём запас по таймауту; тот же TLS, что у основного клиента.
 	client := c.HTTPClient
 	if client == nil {
-		client = &http.Client{Timeout: 120 * time.Second}
+		var errClient error
+		client, errClient = tlsutil.New_HTTPClient(120 * time.Second)
+		if errClient != nil {
+			return nil, errClient
+		}
 	}
 
 	resp, err := client.Do(req)

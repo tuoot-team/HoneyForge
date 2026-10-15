@@ -31,6 +31,15 @@ from texts import (
 	SetupStep2Header,
 	SetupStep2TipCreds,
 	SetupStep2TipService,
+	SetupAskHighVmText,
+	SetupAskImageTokenText,
+	SetupAskVmNameText,
+	SetupAskVmSnapshotText,
+	SetupAskRdpHostPortText,
+	SetupAskVmAutoStartText,
+	SetupHighNeedsImageText,
+	SetupHighConfiguredText,
+	DeployHighVmNoteText,
 	SetupAskLinkCredsText,
 	SetupLinkCredsTipText,
 	SetupAskCollectIntervalText,
@@ -78,6 +87,8 @@ from texts import (
 	SetupAskCoverText,
 	SetupAskCoverUrlsText,
 	SetupAskFsPackFileText,
+	SetupAskPersonalityPackText,
+	SetupPersonalityPackTipText,
 	SetupAskFsPackModeText,
 	SetupAskFsPackNameText,
 	SetupAskFsPackPickText,
@@ -507,6 +518,7 @@ def _ask_Stealth() -> dict:
 			"user_agent": SetupUserAgentDefault,
 			"process_enabled": False,
 			"process_name": "metricsd",
+			"service_personality": _ask_PersonalityPackKey(),
 		}
 
 	jitter_enabled = _ask_YesNo(SetupAskJitterText, True)
@@ -552,7 +564,31 @@ def _ask_Stealth() -> dict:
 		"user_agent": user_agent,
 		"process_enabled": process_enabled,
 		"process_name": process_name,
+		"service_personality": _ask_PersonalityPackKey(),
 	}
+
+
+def _ask_PersonalityPackKey() -> str:
+	print_SetupTip(SetupPersonalityPackTipText)
+	keys: list[str] = []
+	try:
+		data = client.list_PersonalityPacks()
+		for item in data.get("items") or []:
+			key = str(item.get("key") or "").strip()
+			if key:
+				keys.append(key)
+				title = item.get("title") or ""
+				print(f"  {len(keys)}. {Fore.GREEN}{key}{Style.RESET_ALL}  {title}")
+	except client.ApiError:
+		pass
+	raw = (_ask(SetupAskPersonalityPackText, "") or "").strip()
+	if not raw:
+		return ""
+	if raw.isdigit() and keys:
+		idx = int(raw)
+		if 1 <= idx <= len(keys):
+			return keys[idx - 1]
+	return raw
 
 
 def _ask_FreePort(taken: set[int], default: int) -> int:
@@ -642,8 +678,49 @@ def _defaults_ForService(service: str) -> dict:
 	}
 
 
-def _configure_All() -> list[dict]:
+def _ask_Emulation() -> dict | None:
+	"""High VirtualBox: образ из реестра + NAT RDP."""
+	if not _ask_YesNo(SetupAskHighVmText, False):
+		return None
+	try:
+		data = client.list_VmImages()
+	except client.ApiError:
+		data = {"items": []}
+	items = data.get("items") or []
+	if not items:
+		print_Attention(SetupHighNeedsImageText)
+		return None
+	print_OpsLine("образы", str(len(items)))
+	for item in items[:20]:
+		print(f"  {item.get('token')}  {item.get('name')}  ({item.get('format')})")
+	token = (_ask(SetupAskImageTokenText, str(items[0].get("token") or "")) or "").strip()
+	if not token:
+		print_Attention(SetupHighNeedsImageText)
+		return None
+	vm_name = (_ask(SetupAskVmNameText, "hf-guest") or "hf-guest").strip() or "hf-guest"
+	snapshot = (_ask(SetupAskVmSnapshotText, "clean") or "clean").strip() or "clean"
+	rdp = _ask_Int(SetupAskRdpHostPortText, 3389, 1, 65535)
+	auto_start = _ask_YesNo(SetupAskVmAutoStartText, True)
+	print(Fore.GREEN + SetupHighConfiguredText.format(vm_name=vm_name, image_token=token) + Style.RESET_ALL)
+	print_Attention(DeployHighVmNoteText)
+	return {
+		"enabled": True,
+		"runtime": "virtualbox",
+		"image_token": token,
+		"vm_name": vm_name,
+		"cpus": 2,
+		"memory_mb": 4096,
+		"snapshot": snapshot,
+		"expose": [{"host_port": rdp, "guest_port": 3389, "proto": "tcp"}],
+		"auto_start": auto_start,
+	}
+
+
+def _configure_All() -> tuple[list[dict], dict | None]:
 	_step_Header(SetupStep2Header)
+	emulation = _ask_Emulation()
+	if emulation:
+		return [], emulation
 	print_SetupTip(SetupStep2TipService)
 	selected = _ask_TrapSelection()
 	faces = []
@@ -668,7 +745,7 @@ def _configure_All() -> list[dict]:
 		faces.append(face)
 		taken.add(int(face["port"]))
 	_assert_TrapsFit(faces)
-	return faces
+	return faces, None
 
 
 def _auth_Module(face: dict) -> dict:
@@ -874,28 +951,36 @@ def _save_Profile(
 	trap_name: str,
 	faces: list[dict],
 	stealth: dict,
+	emulation: dict | None = None,
 ) -> tuple[str, str]:
 	profile_name = trap_name
-	_assert_TrapsFit(faces)
-	level = "low"
-	credentials = []
-	seen_ids: set[str] = set()
-	service_blocks = []
-	counts: dict[str, int] = {}
-	for face in faces:
-		if face.get("level") == "medium":
-			level = "medium"
-		for item in face.get("credentials") or []:
-			if item["id"] in seen_ids:
-				continue
-			seen_ids.add(item["id"])
-			credentials.append(item)
-		kind = str(face["service"])
-		counts[kind] = counts.get(kind, 0) + 1
-		service_blocks.append(_service_Block(face, f"{kind}-{counts[kind]}"))
+	if emulation:
+		level = "high"
+		credentials = []
+		service_blocks = []
+		baits = []
+		honeytokens = []
+	else:
+		_assert_TrapsFit(faces)
+		level = "low"
+		credentials = []
+		seen_ids: set[str] = set()
+		service_blocks = []
+		counts: dict[str, int] = {}
+		for face in faces:
+			if face.get("level") == "medium":
+				level = "medium"
+			for item in face.get("credentials") or []:
+				if item["id"] in seen_ids:
+					continue
+				seen_ids.add(item["id"])
+				credentials.append(item)
+			kind = str(face["service"])
+			counts[kind] = counts.get(kind, 0) + 1
+			service_blocks.append(_service_Block(face, f"{kind}-{counts[kind]}"))
 
-	baits = _park_Baits(service_blocks, credentials)
-	honeytokens = _park_Honeytokens(service_blocks, baits)
+		baits = _park_Baits(service_blocks, credentials)
+		honeytokens = _park_Honeytokens(service_blocks, baits)
 	body = {
 		"name": profile_name,
 		"description": f"ловушка {trap_name}",
@@ -905,6 +990,7 @@ def _save_Profile(
 			"credentials": credentials,
 			"baits": baits,
 			"honeytokens": honeytokens,
+			"emulation": emulation or {"enabled": False},
 			"logging": {
 				"capture_credentials": True,
 				"capture_payloads": True,
@@ -940,7 +1026,7 @@ def _save_Profile(
 					"name": stealth["process_name"],
 				},
 				"decoy_content_seed": trap_name,
-				"service_personality": "",
+				"service_personality": str(stealth.get("service_personality") or ""),
 			},
 		},
 	}
@@ -1258,10 +1344,12 @@ def cmd_Setup(_args) -> None:
 		print_OpsLine("Сегмент", segment)
 		print_Attention("Сегмент ловушки изолирован от продакшена.")
 
-		faces = _configure_All()
+		faces, emulation = _configure_All()
 		stealth = _ask_Stealth()
 		courier_mode = stealth.get("collection_mode") == "courier"
-		profile_id, profile_name = _save_Profile(trap_name, faces, stealth)
+		profile_id, profile_name = _save_Profile(
+			trap_name, faces, stealth, emulation=emulation
+		)
 
 		known_code = _install_OverSsh(trap_name, profile_name)
 		trap_id = _wait_AndApprove(profile_id, trap_name, known_code)

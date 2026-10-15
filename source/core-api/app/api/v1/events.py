@@ -3,7 +3,7 @@ from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 
 from app.deps import CurrentUser, DbSession, require_Permission
 from app.domains.events import service as event_service
@@ -36,6 +36,41 @@ def list_Events(
 		offset=offset,
 		visible_trap_ids=visible,
 		min_priority=min_priority,
+	)
+
+
+@router.get("/export")
+def export_Events(
+	db: DbSession,
+	operator: CurrentUser = Depends(require_Permission(PERM_EVENTS_READ)),
+	format: Literal["csv", "stix"] = Query(default="csv", alias="format"),
+	trap_id: UUID | None = None,
+	event_type: str | None = None,
+	source_ip: str | None = None,
+	min_priority: Literal["low", "medium", "high"] | None = None,
+	since: str | None = None,
+	until: str | None = None,
+	limit: int = Query(default=5000, ge=1, le=20000),
+) -> Response:
+	"""IoC-выгрузка: CSV или минимальный STIX 2.1 bundle."""
+	visible = trap_access.visible_Trap_Ids(db, operator)
+	body, media = event_service.export_Events(
+		db,
+		fmt=format,
+		trap_id=trap_id,
+		event_type=event_type,
+		source_ip=source_ip,
+		min_priority=min_priority,
+		since_raw=since,
+		until_raw=until,
+		limit=limit,
+		visible_trap_ids=visible,
+	)
+	filename = "events.stix.json" if format == "stix" else "events.csv"
+	return Response(
+		content=body,
+		media_type=media,
+		headers={"Content-Disposition": f'attachment; filename="{filename}"'},
 	)
 
 

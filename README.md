@@ -26,6 +26,8 @@ CLI / Web  --HTTP + SSE-->  Control API  -->  PostgreSQL
 
 TLS: в `source/core-api/.env` задайте `TLS_DOMAIN` (и желательно `TLS_EMAIL`) - при `docker compose up` nginx сам запросит Let's Encrypt (нужен публичный DNS и порт 80). Пустой `TLS_DOMAIN` - только HTTP. После выпуска: `PUBLIC_BASE_URL=https://ваш.домен`, CLI `API_BASE=https://ваш.домен:8088`.
 
+Опциональный mTLS на канале агента/курьера (`:443`): `source/core-api/scripts/gen-mtls.sh` → положить `mtls/ca.crt` (compose volume). На ловушке в `.env`: `TLS_CLIENT_CERT` / `TLS_CLIENT_KEY` (и при необходимости `TLS_CA`). Без CA-файла mTLS выключен, работают HTTPS + `X-Agent-Token` / `X-Courier-Token` как раньше. Operator API `:8088` без client-cert.
+
 ## Профиль
 
 Уровень считается из включённых модулей и должен совпасть с `interaction_level`.
@@ -158,15 +160,23 @@ TLS: в `source/core-api/.env` задайте `TLS_DOMAIN` (и желатель�
 
 Блок `honeytokens` в профиле (`file` / `url` / `key` / `credential`). Hit → `honeytoken_hit` (priority high). Пример: `source/honeypots/examples/mid-honeynet.json`. CLI: `events-list --type honeytoken_hit --min-priority high`.
 
-### Фаза 6b - High: VM с пересобранными образами
-- [ ] Полноценные VM (KVM/libvirt) на серверах-ловушках, не контейнер-заглушка
-- [ ] Пайплайн пересборки образов без бренда HoneyForge; изоляция от прод-сети
-- [ ] Snapshot revert по TTL/команде; запись сессии (I/O, файлы) в центр
-- [ ] Телеметрия тем же `agent|courier`; снять запрет `interaction_level=high` когда пайплайн готов
-- [ ] Стоп-критерий: boot из своего образа → реальный shell → события в центре → revert
+### Фаза 6b - High: VM с пересобранными образами (VirtualBox MVP)
+- [x] Точка приёмки образа: [`source/high-vm/`](source/high-vm/) (inbox + манифест; поставка от Кирилла)
+- [x] Реестр образов: `GET/POST /api/v1/vm-images/`, агент `GET /api/v1/agent/vm-images/{token}`, CLI `vm-image-list|upload|delete`
+- [x] Профиль `blocks.emulation` + снят запрет `interaction_level=high` при валидном `image_token`
+- [x] Агент: `VBoxManage` (`vm_ensure|start|stop|revert|status`), ack команд, события `vm_*`
+- [x] CLI: `trap-vm`, setup high, `profile-create --level high --image-token …`
+- [ ] Smoke импорт на стенде с реальным OVA Кирилла
+- [ ] Sleep/wake RDP proxy, KVM/libvirt, in-guest telemetry (follow-up)
+
+Поток: inbox → `vm-image-upload` → `profile.emulation` → bind → агент import/start. На ловушке нужны VirtualBox + `VBoxManage`. Документы: [`source/high-vm/README.md`](source/high-vm/README.md).
 
 ### Фаза 6c - Infra хвост
-- [ ] mTLS агент/курьер ↔ центр
-- [ ] Алерты по порогам с учётом приоритета события (важное → уведомление раньше шума banner_grab)
-- [ ] IoC-экспорт (CSV; STIX по остатку)
-- [ ] Personality packs как пресеты
+- [x] mTLS агент/курьер ↔ центр (опционально через env / `mtls/ca.crt`)
+- [x] IoC-экспорт (CSV; STIX по остатку)
+- [x] Personality packs как пресеты
+
+IoC: `GET /api/v1/events/export?format=csv|stix`, CLI `events-export`. Personality packs: `source/personality-packs/`, `mask.service_personality`, CLI `personality-pack-list`.
+
+### Планы развития
+- Outbound-алерты по приоритету (webhook/Telegram): сейчас достаточно SSE `/api/v1/events/stream` + `priority` и внешнего скрипта

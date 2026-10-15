@@ -370,11 +370,32 @@ type HoneytokenBlock struct {
 	Password  string `json:"password"`
 }
 
+// EmulationExpose - NAT port-forward host→guest.
+type EmulationExpose struct {
+	HostPort  int    `json:"host_port"`
+	GuestPort int    `json:"guest_port"`
+	Proto     string `json:"proto"`
+}
+
+// EmulationBlock - High: VirtualBox VM на хосте-ловушке.
+type EmulationBlock struct {
+	Enabled    bool              `json:"enabled"`
+	Runtime    string            `json:"runtime"`
+	ImageToken string            `json:"image_token"`
+	VmName     string            `json:"vm_name"`
+	Cpus       int               `json:"cpus"`
+	MemoryMb   int               `json:"memory_mb"`
+	Snapshot   string            `json:"snapshot"`
+	Expose     []EmulationExpose `json:"expose"`
+	AutoStart  bool              `json:"auto_start"`
+}
+
 type ProfileBlocks struct {
 	Services    []ServiceBlock    `json:"services"`
 	Credentials []CredentialBlock `json:"credentials"`
 	Baits       []BaitBlock       `json:"baits"`
 	Honeytokens []HoneytokenBlock `json:"honeytokens"`
+	Emulation   EmulationBlock    `json:"emulation"`
 	Logging     LoggingBlock      `json:"logging"`
 	Mask        MaskBlock         `json:"mask"`
 }

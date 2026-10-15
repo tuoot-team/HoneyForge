@@ -32,8 +32,12 @@ type Runner struct {
 
 func New_Runner(root string) (*Runner, error) {
 	debug := config.Is_Debug()
+	c, err := New_Client(config.Get_BaseUrl(), debug)
+	if err != nil {
+		return nil, err
+	}
 	return &Runner{
-		Client:    New_Client(config.Get_BaseUrl(), debug),
+		Client:    c,
 		StatePath: filepath.Join(root, ".runtime.json"),
 		Debug:     debug,
 	}, nil

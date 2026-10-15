@@ -91,6 +91,54 @@ def bind_TrapProfile(
 			status="pending",
 		)
 	)
+	# High emulation: поставить образ и при необходимости стартовать VM.
+	blocks = profile.blocks or {}
+	emulation = blocks.get("emulation") if isinstance(blocks, dict) else None
+	if isinstance(emulation, dict) and emulation.get("enabled"):
+		db.add(
+			models.TrapCommand(
+				trap_id=trap.id,
+				command_type="vm_ensure",
+				payload={"profile_id": str(body.profile_id)},
+				status="pending",
+			)
+		)
+		if emulation.get("auto_start", True):
+			db.add(
+				models.TrapCommand(
+					trap_id=trap.id,
+					command_type="vm_start",
+					payload={"profile_id": str(body.profile_id)},
+					status="pending",
+				)
+			)
+	db.commit()
+	db.refresh(trap)
+	return _trap_ToOut(trap)
+
+
+def enqueue_Trap_Vm_Command(
+	db: Session,
+	user: CurrentUser,
+	trap_id: UUID,
+	command_type: str,
+) -> TrapOut:
+	"""Операторская команда vm_start|vm_stop|vm_revert|vm_status|vm_ensure."""
+	allowed = {"vm_start", "vm_stop", "vm_revert", "vm_status", "vm_ensure"}
+	if command_type not in allowed:
+		raise HTTPException(
+			status_code=status.HTTP_400_BAD_REQUEST,
+			detail=f"неизвестная vm-команда: {command_type}",
+		)
+	trap = trap_access.get_Visible_Trap(db, user, trap_id)
+	db.add(
+		models.TrapCommand(
+			trap_id=trap.id,
+			command_type=command_type,
+			payload={},
+			status="pending",
+		)
+	)
 	db.commit()
 	db.refresh(trap)
 	return _trap_ToOut(trap)

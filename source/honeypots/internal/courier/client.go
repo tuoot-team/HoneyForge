@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"metricsd/internal/texts"
+	"metricsd/internal/tlsutil"
 )
 
 const (
@@ -29,14 +30,16 @@ type Client struct {
 	HTTPClient   *http.Client
 }
 
-func New_Client(baseURL string, debug bool) *Client {
-	return &Client{
-		BaseURL: strings.TrimRight(baseURL, "/"),
-		Debug:   debug,
-		HTTPClient: &http.Client{
-			Timeout: 60 * time.Second,
-		},
+func New_Client(baseURL string, debug bool) (*Client, error) {
+	httpClient, err := tlsutil.New_HTTPClient(60 * time.Second)
+	if err != nil {
+		return nil, err
 	}
+	return &Client{
+		BaseURL:    strings.TrimRight(baseURL, "/"),
+		Debug:      debug,
+		HTTPClient: httpClient,
+	}, nil
 }
 
 func (c *Client) debug_Log(message string) {
@@ -113,20 +116,20 @@ type PairingCompleteOut struct {
 }
 
 type VisitClaimOut struct {
-	VisitID    *string           `json:"visit_id"`
-	TrapID     *string           `json:"trap_id"`
-	SSH        map[string]any    `json:"ssh"`
-	BufferPath *string           `json:"buffer_path"`
-	WipeHints  []string          `json:"wipe_hints"`
+	VisitID    *string        `json:"visit_id"`
+	TrapID     *string        `json:"trap_id"`
+	SSH        map[string]any `json:"ssh"`
+	BufferPath *string        `json:"buffer_path"`
+	WipeHints  []string       `json:"wipe_hints"`
 }
 
 type VisitEventIn struct {
-	EventType      string         `json:"event_type"`
-	SourceIP       *string        `json:"source_ip,omitempty"`
-	SourcePort     *int           `json:"source_port,omitempty"`
-	OccurredAt     *string        `json:"occurred_at,omitempty"`
-	Payload        map[string]any `json:"payload"`
-	AgentBufferID  *int64         `json:"agent_buffer_id,omitempty"`
+	EventType     string         `json:"event_type"`
+	SourceIP      *string        `json:"source_ip,omitempty"`
+	SourcePort    *int           `json:"source_port,omitempty"`
+	OccurredAt    *string        `json:"occurred_at,omitempty"`
+	Payload       map[string]any `json:"payload"`
+	AgentBufferID *int64         `json:"agent_buffer_id,omitempty"`
 }
 
 type VisitCompleteIn struct {

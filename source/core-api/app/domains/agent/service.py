@@ -122,3 +122,39 @@ def claim_Command(db: Session, trap: models.Trap) -> dict:
 			"payload": row.payload or {},
 		}
 	}
+
+
+def ack_Command(db: Session, trap: models.Trap, command_id: str, body: dict) -> dict:
+	from uuid import UUID
+
+	from fastapi import HTTPException, status
+
+	from app.texts import MSG_TRAP_COMMAND_NOT_FOUND
+
+	try:
+		cid = UUID(str(command_id))
+	except ValueError as exc:
+		raise HTTPException(
+			status_code=status.HTTP_404_NOT_FOUND,
+			detail=MSG_TRAP_COMMAND_NOT_FOUND,
+		) from exc
+	row = (
+		db.query(models.TrapCommand)
+		.filter(
+			models.TrapCommand.id == cid,
+			models.TrapCommand.trap_id == trap.id,
+		)
+		.one_or_none()
+	)
+	if row is None:
+		raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=MSG_TRAP_COMMAND_NOT_FOUND)
+	ok = bool(body.get("ok", True))
+	detail = str(body.get("detail") or "")
+	row.status = "done" if ok else "failed"
+	payload = dict(row.payload or {})
+	payload["ack_ok"] = ok
+	if detail:
+		payload["ack_detail"] = detail[:2000]
+	row.payload = payload
+	db.commit()
+	return {"id": str(row.id), "status": row.status}

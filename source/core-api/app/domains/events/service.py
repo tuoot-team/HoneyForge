@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import csv
+import io
+import json
+import uuid as uuid_lib
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -17,6 +21,29 @@ from app.domains.events.schemas import (
 )
 from app.texts import MSG_TRAP_NOT_FOUND
 
+ExportFormat = Literal["csv", "stix"]
+
+_CSV_COLUMNS = [
+	"id",
+	"trap_id",
+	"occurred_at",
+	"event_type",
+	"priority",
+	"source_ip",
+	"source_port",
+	"username",
+	"password",
+	"command",
+	"path",
+	"method",
+	"service",
+	"port",
+	"token_id",
+	"kind",
+	"trigger",
+	"payload_json",
+]
+
 _PRIORITY_RANK: dict[EventPriority, int] = {"low": 0, "medium": 1, "high": 2}
 
 
@@ -25,6 +52,11 @@ def event_Priority(event_type: str, payload: dict[str, Any] | None) -> EventPrio
 	etype = (event_type or "").strip()
 	if etype in ("shell_command", "db_command", "honeytoken_hit"):
 		return "high"
+	if etype.startswith("vm_"):
+		# fail → medium/high; успешный ensure/start → medium
+		if payload.get("ok") is False:
+			return "high"
+		return "medium"
 	if etype == "auth_attempt":
 		if bool(payload.get("success")):
 			return "high"
@@ -192,3 +224,199 @@ def list_Event_Chains(
 
 	items.sort(key=lambda item: (not item.is_lateral, -_PRIORITY_RANK[item.max_priority], -(item.event_count)))
 	return EventChainListOut(items=items, total=len(items))
+
+
+def _parse_Iso(value: str | None) -> datetime | None:
+	if not value or not str(value).strip():
+		return None
+	text = str(value).strip()
+	if text.endswith("Z"):
+		text = text[:-1] + "+00:00"
+	try:
+		dt = datetime.fromisoformat(text)
+	except ValueError as exc:
+		raise HTTPException(
+			status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+			detail=f"некорректная дата: {value}",
+		) from exc
+	if dt.tzinfo is None:
+		dt = dt.replace(tzinfo=timezone.utc)
+	return dt
+
+
+def _query_Events_ForExport(
+	db: Session,
+	*,
+	trap_id: UUID | None,
+	event_type: str | None,
+	source_ip: str | None,
+	since: datetime | None,
+	until: datetime | None,
+	visible_trap_ids: set[UUID] | None,
+) -> list[models.Event]:
+	query = db.query(models.Event)
+	if visible_trap_ids is not None:
+		if trap_id is not None:
+			if trap_id not in visible_trap_ids:
+				raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=MSG_TRAP_NOT_FOUND)
+			query = query.filter(models.Event.trap_id == trap_id)
+		elif not visible_trap_ids:
+			return []
+		else:
+			query = query.filter(models.Event.trap_id.in_(visible_trap_ids))
+	elif trap_id is not None:
+		query = query.filter(models.Event.trap_id == trap_id)
+	if event_type:
+		query = query.filter(models.Event.event_type == event_type)
+	if source_ip:
+		query = query.filter(models.Event.source_ip == source_ip)
+	if since is not None:
+		query = query.filter(models.Event.occurred_at >= since)
+	if until is not None:
+		query = query.filter(models.Event.occurred_at <= until)
+	return query.order_by(models.Event.occurred_at.desc()).all()
+
+
+def _payload_Field(payload: dict[str, Any], key: str) -> str:
+	raw = payload.get(key)
+	if raw is None:
+		return ""
+	return str(raw)
+
+
+def _event_Csv_Row(row: models.Event) -> dict[str, str]:
+	payload = row.payload or {}
+	prio = event_Priority(row.event_type, payload)
+	flat_keys = (
+		"username",
+		"password",
+		"command",
+		"path",
+		"method",
+		"service",
+		"port",
+		"token_id",
+		"kind",
+		"trigger",
+	)
+	used = set(flat_keys)
+	extra = {k: v for k, v in payload.items() if k not in used}
+	return {
+		"id": str(row.id),
+		"trap_id": str(row.trap_id) if row.trap_id else "",
+		"occurred_at": row.occurred_at.isoformat() if row.occurred_at else "",
+		"event_type": row.event_type or "",
+		"priority": prio,
+		"source_ip": row.source_ip or "",
+		"source_port": "" if row.source_port is None else str(row.source_port),
+		"username": _payload_Field(payload, "username"),
+		"password": _payload_Field(payload, "password"),
+		"command": _payload_Field(payload, "command"),
+		"path": _payload_Field(payload, "path"),
+		"method": _payload_Field(payload, "method"),
+		"service": _payload_Field(payload, "service"),
+		"port": _payload_Field(payload, "port"),
+		"token_id": _payload_Field(payload, "token_id"),
+		"kind": _payload_Field(payload, "kind"),
+		"trigger": _payload_Field(payload, "trigger"),
+		"payload_json": json.dumps(extra, ensure_ascii=False, default=str) if extra else "",
+	}
+
+
+def render_Events_Csv(rows: list[models.Event]) -> str:
+	buf = io.StringIO()
+	writer = csv.DictWriter(buf, fieldnames=_CSV_COLUMNS, extrasaction="ignore")
+	writer.writeheader()
+	for row in rows:
+		writer.writerow(_event_Csv_Row(row))
+	return buf.getvalue()
+
+
+def render_Events_Stix(rows: list[models.Event]) -> dict[str, Any]:
+	"""Минимальный STIX 2.1 bundle: ipv4-addr + indicator для honeytoken_hit."""
+	objects: list[dict[str, Any]] = []
+	seen_ips: set[str] = set()
+	for row in rows:
+		ip = (row.source_ip or "").strip()
+		if ip and ip not in seen_ips:
+			seen_ips.add(ip)
+			objects.append({
+				"type": "ipv4-addr",
+				"spec_version": "2.1",
+				"id": f"ipv4-addr--{uuid_lib.uuid5(uuid_lib.NAMESPACE_DNS, ip)}",
+				"value": ip,
+			})
+		if row.event_type == "honeytoken_hit":
+			payload = row.payload or {}
+			token_id = str(payload.get("token_id") or "").strip()
+			path = str(payload.get("path") or "").strip()
+			pattern_parts = []
+			if token_id:
+				pattern_parts.append(f"[x-honeyforge-token:value = '{token_id}']")
+			if path:
+				pattern_parts.append(f"[file:path = '{path}']")
+			if not pattern_parts and ip:
+				pattern_parts.append(f"[ipv4-addr:value = '{ip}']")
+			if not pattern_parts:
+				continue
+			objects.append({
+				"type": "indicator",
+				"spec_version": "2.1",
+				"id": f"indicator--{uuid_lib.uuid5(uuid_lib.NAMESPACE_URL, f'{row.id}:{token_id}:{path}')}",
+				"created": (row.occurred_at or row.created_at).isoformat().replace("+00:00", "Z")
+				if (row.occurred_at or row.created_at)
+				else datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+				"modified": (row.occurred_at or row.created_at).isoformat().replace("+00:00", "Z")
+				if (row.occurred_at or row.created_at)
+				else datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+				"name": f"honeytoken_hit:{token_id or path or row.id}",
+				"pattern": " OR ".join(pattern_parts),
+				"pattern_type": "stix",
+				"valid_from": (row.occurred_at or row.created_at).isoformat().replace("+00:00", "Z")
+				if (row.occurred_at or row.created_at)
+				else datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+				"labels": ["honeytoken", str(payload.get("kind") or "unknown")],
+			})
+	return {
+		"type": "bundle",
+		"id": f"bundle--{uuid_lib.uuid4()}",
+		"objects": objects,
+	}
+
+
+def export_Events(
+	db: Session,
+	*,
+	fmt: ExportFormat,
+	trap_id: UUID | None,
+	event_type: str | None,
+	source_ip: str | None,
+	min_priority: EventPriority | None,
+	since_raw: str | None,
+	until_raw: str | None,
+	limit: int,
+	visible_trap_ids: set[UUID] | None = None,
+) -> tuple[str, str]:
+	"""Возвращает (body, media_type)."""
+	since = _parse_Iso(since_raw)
+	until = _parse_Iso(until_raw)
+	rows = _query_Events_ForExport(
+		db,
+		trap_id=trap_id,
+		event_type=event_type,
+		source_ip=source_ip,
+		since=since,
+		until=until,
+		visible_trap_ids=visible_trap_ids,
+	)
+	if min_priority:
+		rows = [
+			row
+			for row in rows
+			if _priority_At_Least(event_Priority(row.event_type, row.payload or {}), min_priority)
+		]
+	rows = rows[: max(1, limit)]
+	if fmt == "stix":
+		body = json.dumps(render_Events_Stix(rows), ensure_ascii=False, indent=2)
+		return body, "application/stix+json"
+	return render_Events_Csv(rows), "text/csv; charset=utf-8"

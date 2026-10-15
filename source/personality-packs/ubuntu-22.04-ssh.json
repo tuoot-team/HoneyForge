@@ -1,0 +1,28 @@
+{
+	"key": "ubuntu-22.04-ssh",
+	"title": "Ubuntu 22.04 SSH (OpenSSH + metricsd)",
+	"mask": {
+		"decoy_content_seed": "ubuntu-lab-01",
+		"mimicry": {
+			"enabled": true,
+			"user_agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/115.0",
+			"tls_fingerprint_profile": "browser-like"
+		},
+		"process_mask": {
+			"enabled": true,
+			"name": "metricsd"
+		}
+	},
+	"service_defaults": {
+		"ssh": {
+			"banner_version": "SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.6"
+		},
+		"http": {
+			"server": "Apache/2.4.52 (Ubuntu)",
+			"title": "Apache2 Ubuntu Default Page",
+			"headers": {
+				"X-Powered-By": ""
+			}
+		}
+	}
+}

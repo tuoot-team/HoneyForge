@@ -1,10 +1,26 @@
 #!/bin/sh
 # Nginx + опциональный Let's Encrypt, если задан TLS_DOMAIN.
 # Operator API всегда на :8088 - HTTP без домена, HTTPS при TLS_DOMAIN.
+# mTLS на :443 только если найден CA (MTLS_CA_FILE или /etc/honeyforge/mtls/ca.crt).
 set -e
 
 DOMAIN="$(echo "${TLS_DOMAIN:-}" | tr -d '[:space:]')"
 EMAIL="$(echo "${TLS_EMAIL:-}" | tr -d '[:space:]')"
+
+resolve_Mtls_Ca() {
+	_ca="$(echo "${MTLS_CA_FILE:-}" | tr -d '[:space:]')"
+	if [ -n "$_ca" ] && [ -f "$_ca" ]; then
+		echo "$_ca"
+		return 0
+	fi
+	if [ -f /etc/honeyforge/mtls/ca.crt ]; then
+		echo /etc/honeyforge/mtls/ca.crt
+		return 0
+	fi
+	echo ""
+}
+
+MTLS_CA="$(resolve_Mtls_Ca)"
 
 mkdir -p /var/www/certbot /etc/nginx/conf.d /etc/letsencrypt
 rm -f /etc/nginx/conf.d/tls.conf /etc/nginx/conf.d/operator.conf
@@ -23,6 +39,16 @@ EOF
 
 write_Tls_Conf() {
 	_domain="$1"
+	_mtls_ca="$2"
+	_mtls_block=""
+	if [ -n "$_mtls_ca" ]; then
+		_mtls_block=$(cat <<MTLS
+	# Опциональный mTLS: агент/курьер предъявляют клиентский сертификат
+	ssl_client_certificate ${_mtls_ca};
+	ssl_verify_client on;
+MTLS
+)
+	fi
 	cat > /etc/nginx/conf.d/tls.conf <<EOF
 # Сгенерировано entrypoint при TLS_DOMAIN=${_domain}
 server {
@@ -35,11 +61,11 @@ server {
 	ssl_session_timeout 1d;
 	ssl_session_cache shared:SSL:10m;
 	ssl_protocols TLSv1.2 TLSv1.3;
-
+${_mtls_block}
 	include /etc/nginx/honeyforge/agent_locations.conf;
 }
 
-# Тот же порт 8088, что и без TLS - только уже HTTPS
+# Тот же порт 8088, что и без TLS - только уже HTTPS (без mTLS)
 server {
 	listen 8088 ssl;
 	http2 on;
@@ -97,9 +123,14 @@ sleep 1
 if [ -n "$DOMAIN" ]; then
 	if obtain_Or_Skip_Cert "$DOMAIN" "$EMAIL"; then
 		rm -f /etc/nginx/conf.d/operator.conf
-		write_Tls_Conf "$DOMAIN"
+		write_Tls_Conf "$DOMAIN" "$MTLS_CA"
 		nginx -s reload
 		echo "[ssl] HTTPS: :443 (агент/сайт), :8088 (operator API)"
+		if [ -n "$MTLS_CA" ]; then
+			echo "[ssl] mTLS на :443 включён (CA=${MTLS_CA})"
+		else
+			echo "[ssl] mTLS выключен (нет MTLS_CA_FILE / /etc/honeyforge/mtls/ca.crt)"
+		fi
 		echo "[ssl] PUBLIC_BASE_URL=https://${DOMAIN}"
 		echo "[ssl] CLI API_BASE=https://${DOMAIN}:8088"
 		renew_Loop &
