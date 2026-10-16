@@ -28,6 +28,65 @@ TLS: в `source/core-api/.env` задайте `TLS_DOMAIN` (и желатель�
 
 Опциональный mTLS на канале агента/курьера (`:443`): `source/core-api/scripts/gen-mtls.sh` → положить `mtls/ca.crt` (compose volume). На ловушке в `.env`: `TLS_CLIENT_CERT` / `TLS_CLIENT_KEY` (и при необходимости `TLS_CA`). Без CA-файла mTLS выключен, работают HTTPS + `X-Agent-Token` / `X-Courier-Token` как раньше. Operator API `:8088` без client-cert.
 
+## Развёртывание
+
+Сборка на машине с Go, Node.js и npm:
+
+```bash
+./build_linux.sh
+```
+
+Получается `build/core-api.tar.gz`. Внутри два каталога рядом: `core-api/` и `web/`. Панель уже собрана в `web/dist`. Рабочий `.env` разработчика в архив не входит: оба `.env` скопированы из примеров.
+
+На сервере распакуй архив так, чтобы каталоги остались соседями. Compose монтирует панель как `../web/dist` относительно `core-api/`.
+
+```text
+honeyforge/
+  core-api/          # docker compose отсюда
+  web/dist/          # index.html панели
+```
+
+```bash
+mkdir -p honeyforge && tar -xzf core-api.tar.gz -C honeyforge
+cd honeyforge/core-api
+```
+
+Если каталог уже рабочий, не затирай его `.env` файлом из архива. В архиве пароли и `TLS_DOMAIN` из примера.
+
+Перед первым запуском поправь `core-api/.env`:
+
+| Переменная | Что поставить |
+|------------|----------------|
+| `TLS_DOMAIN`, `TLS_EMAIL` | Домен, который смотрит на этот хост. Пустой `TLS_DOMAIN` оставляет только HTTP |
+| `PUBLIC_BASE_URL` | `https://домен` после выпуска сертификата, иначе `http://домен` |
+| `OPERATOR_USERNAME`, `OPERATOR_PASSWORD`, `OPERATOR_TOKEN_SECRET` | Первый администратор. Создаётся, когда таблица `users` пустая |
+| `API_BASE` | Оставь `http://api:8000`. Это адрес API внутри compose, не адрес браузера и не адрес CLI |
+
+Запуск. Образ nginx собирается из `./nginx` и сам ставит certbot:
+
+```bash
+docker compose up -d --build
+docker compose logs nginx --tail 30
+```
+
+Нужны открытые порты 80, 443 и 8088 и публичный DNS на этот хост: Let's Encrypt проверяет домен по HTTP на порту 80. Успех в логе: `[ssl] HTTPS: :443 (агент/сайт), :8088 (operator API)`.
+
+Куда ходить:
+
+- Панель: `https://домен/` (порты 80 и 443). Пока нет `../web/dist/index.html`, на `/` остаётся витрина Edge Cache.
+- CLI: `API_BASE=https://домен:8088`. Корень этого порта всегда 404, панели там нет. Проверка ядра: `curl -skf https://127.0.0.1:8088/health`.
+- Канал агента и курьера: порты 80 и 443, не 8088.
+
+Проверка на сервере:
+
+```bash
+docker compose ps
+ls -la ../web/dist/index.html
+curl -skf https://127.0.0.1:8088/health || curl -sf http://127.0.0.1:8088/health
+```
+
+Ответ health: `{"status":"ok",...}`. Если HTTPS молчит, а HTTP отвечает, сертификат не выпустился. Смотри лог nginx: строка `certbot не смог выпустить сертификат` значит, что пакет на месте, но ACME не дошёл (DNS или закрытый порт 80).
+
 ## Профиль
 
 Уровень считается из включённых модулей и должен совпасть с `interaction_level`.
