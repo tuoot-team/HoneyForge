@@ -1,24 +1,19 @@
-<!doctype html>
-<html lang="ru" data-theme="dark">
+<!DOCTYPE html>
+<html lang="ru" data-theme="graphite">
 	<head>
 		<meta charset="UTF-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<meta
-			name="description"
-			content="HoneyForge - конструктор и центр управления honeypot-ловушками для SOC-оператора."
-		/>
 		<title>HoneyForge</title>
+		<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+		<!-- Тема до первой отрисовки, иначе графит мигает поверх сохранённого терминала. -->
 		<script>
 			(function () {
 				try {
-					var stored = localStorage.getItem('honeyforge-theme')
-					var theme = stored === 'light' || stored === 'dark' ? stored : 'dark'
-					document.documentElement.setAttribute('data-theme', theme)
-					document.documentElement.style.colorScheme = theme
-				} catch (error) {
-					document.documentElement.setAttribute('data-theme', 'dark')
-					document.documentElement.style.colorScheme = 'dark'
+					var stored = localStorage.getItem("honeyforge-theme")
+					if (stored === "terminal" || stored === "graphite" || stored === "retro") {
+						document.documentElement.setAttribute("data-theme", stored)
+					}
+				} catch {
 				}
 			})()
 		</script>

@@ -12,6 +12,7 @@ from commands.deploy import (
 	install_AgentOverSsh,
 	public_Agent_Center_Url,
 )
+from commands.profiles import check_ContainerImage
 from cat_mode import maybe_Meow
 from line_input import AnswerStack, LineGoBack, read_Line
 from texts import (
@@ -44,6 +45,9 @@ from texts import (
 	SetupHighConfiguredText,
 	DeployHighVmNoteText,
 	SetupAskLinkCredsText,
+	SetupAskContainerText,
+	SetupAskContainerImageText,
+	SetupAskContainerPortText,
 	SetupLinkCredsTipText,
 	SetupAskCollectIntervalText,
 	SetupAskCreateCourierText,
@@ -292,7 +296,6 @@ def _ask_FsPack(default: str = "ubuntu-22.04") -> str:
 			SetupFsPackUploadOkText.format(token=token, name=data.get("name") or name),
 		)
 		return token
-	# existing
 	try:
 		data = client.list_FsPacks()
 	except client.ApiError as exc:
@@ -804,8 +807,32 @@ def _configure_All() -> tuple[list[dict], dict | None]:
 		face = _configure_Modules(item, shared_bait=shared_bait)
 		faces.append(face)
 		taken.add(int(face["port"]))
+	container = _ask_Container(taken)
+	if container:
+		faces.append(container)
 	_assert_TrapsFit(faces)
 	return faces, None
+
+
+def _ask_Container(taken: set[int]) -> dict | None:
+	if not _ask_YesNo(SetupAskContainerText, False):
+		return None
+	image = ""
+	while not image:
+		raw = (_ask(SetupAskContainerImageText, "") or "").strip()
+		try:
+			image = check_ContainerImage(raw)
+		except ValueError as exc:
+			print_Attention(str(exc))
+	port = _ask_FreePort(taken, 2222)
+	container_port = _ask_Int(SetupAskContainerPortText, port, 1, 65535)
+	return {
+		"service": "container",
+		"port": port,
+		"image": image,
+		"container_port": container_port,
+		"level": "medium",
+	}
 
 
 def _auth_Module(face: dict) -> dict:
@@ -826,6 +853,17 @@ def _auth_Module(face: dict) -> dict:
 def _service_Block(face: dict, service_id: str) -> dict:
 	service = face["service"]
 	port = int(face["port"])
+	if service == "container":
+		return {
+			"type": "container",
+			"id": service_id,
+			"port": port,
+			"enabled": True,
+			"modules": {
+				"image": face.get("image") or "",
+				"container_port": int(face.get("container_port") or port),
+			},
+		}
 	auth_module = _auth_Module(face)
 	auth_enabled = bool(auth_module["enabled"])
 	if service == "tcp_banner":

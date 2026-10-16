@@ -146,7 +146,7 @@ def create_parser() -> argparse.ArgumentParser:
 	p_pc.add_argument(
 		"--service",
 		default="ssh",
-		choices=["ssh", "http", "https", "tcp_banner", "postgres", "redis", "mysql"],
+		choices=["ssh", "http", "https", "tcp_banner", "postgres", "redis", "mysql", "container"],
 		help="тип сервиса (default ssh)",
 	)
 	p_pc.add_argument(
@@ -167,6 +167,8 @@ def create_parser() -> argparse.ArgumentParser:
 	p_pc.add_argument("--delay-max", dest="delay_max", type=int, help="макс. задержка входа, мс")
 	p_pc.add_argument("--sticky-ttl", dest="sticky_ttl", type=int, help="TTL привязки IP, часы")
 	p_pc.add_argument("--no-shell", dest="no_shell", action="store_true", help="SSH: вход без shell")
+	p_pc.add_argument("--image", default="", help="container: образ, например ghcr.io/org/honeypot:1.2.3")
+	p_pc.add_argument("--container-port", dest="container_port", type=int, help="container: порт внутри контейнера")
 	p_pc.add_argument("--image-token", dest="image_token", help="High: token образа vmi_...")
 	p_pc.add_argument("--vm-name", dest="vm_name", default="hf-guest", help="High: имя VM")
 	p_pc.add_argument("--snapshot", dest="snapshot", default="clean", help="High: snapshot")

@@ -22,7 +22,7 @@ CLI / Web  --HTTP + SSE-->  Control API  -->  PostgreSQL
                          Агент + honeypot  --------+
 ```
 
-Канал агента идёт на порт 80 (и 443 при TLS), туда же отдаётся обычная страница. Heartbeat на `/v1/metrics` и `/cdn/edge-check`, события на `/api/telemetry/batch`. Без заголовка `X-Agent-Token` эти пути отвечают страницей 404. Операторский API - порт **8088**: HTTP без TLS, HTTPS если задан `TLS_DOMAIN`.
+Канал агента идёт на порт 80 (и 443 при TLS). На этих же портах открывается web-панель, её `/api/` nginx проксирует в Control API. Адрес апстрима берётся из `API_BASE` в `source/core-api/.env` (в compose по умолчанию `http://api:8000`). Для `npm run dev` тот же смысл у `API_BASE` в `source/web/.env`. Пока `source/web/dist` не собран, на `/` остаётся витрина Edge Cache. Heartbeat на `/v1/metrics` и `/cdn/edge-check`, события на `/api/telemetry/batch`. Без заголовка `X-Agent-Token` эти пути отвечают страницей 404. Операторский API для CLI - порт **8088**: HTTP без TLS, HTTPS если задан `TLS_DOMAIN`.
 
 TLS: в `source/core-api/.env` задайте `TLS_DOMAIN` (и желательно `TLS_EMAIL`) - при `docker compose up` nginx сам запросит Let's Encrypt (нужен публичный DNS и порт 80). Пустой `TLS_DOMAIN` - только HTTP. После выпуска: `PUBLIC_BASE_URL=https://ваш.домен`, CLI `API_BASE=https://ваш.домен:8088`.
 
@@ -117,7 +117,7 @@ TLS: в `source/core-api/.env` задайте `TLS_DOMAIN` (и желатель�
 - [ ] Login, конструктор профилей на Profiles API, pairing/bind, traps, SSE-лента
 - [ ] Приоритеты в ленте событий: типы ранжируются (например `shell_command` / auth success выше `banner_grab` / `port_connect`); UI и CLI `tail` показывают уровень, фильтр «только важное»
 - [ ] Стоп-критерий: демо-петля без CLI (login → профиль → pair/bind → событие в ленте)
-- [ ] API base из `.env` (логин до фазы 4b может быть временным bootstrap)
+- [x] API base из `.env` (`API_BASE`, для dev ещё `source/web/.env`)
 
 ### Фаза 4b - Аккаунты и роли
 - [x] Пользователи центра: создание админом, логин username+password, токен с user id (bootstrap из `OPERATOR_USERNAME`/`OPERATOR_PASSWORD`)

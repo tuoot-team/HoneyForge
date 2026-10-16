@@ -62,4 +62,5 @@ source/high-vm/inbox/*
 *.vhdx
 *.ova.part
 
-web/
+# кэш vite, исходники source/web в git
+source/web/.vite/

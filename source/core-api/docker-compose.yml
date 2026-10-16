@@ -45,6 +45,7 @@ services:
 
   nginx:
     build: ./nginx
+    entrypoint: ["/bin/sh", "/honeyforge-entrypoint.sh"]
     ports:
       - "80:80"
       - "443:443"
@@ -52,12 +53,18 @@ services:
     env_file:
       - .env
     environment:
+      # Куда проксировать /api. В сети compose это сервис api.
+      API_BASE: ${API_BASE:-http://api:8000}
       TLS_DOMAIN: ${TLS_DOMAIN:-}
       TLS_EMAIL: ${TLS_EMAIL:-}
       # Путь к CA PEM внутри контейнера; пусто + нет файла = mTLS выкл
       MTLS_CA_FILE: ${MTLS_CA_FILE:-/etc/honeyforge/mtls/ca.crt}
     volumes:
+      - ./nginx/docker-entrypoint.sh:/honeyforge-entrypoint.sh:ro
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/includes:/etc/nginx/honeyforge:ro
       - ./nginx/www:/usr/share/nginx/html/site:ro
+      - ../web/dist:/usr/share/nginx/html/panel:ro
       - ./downloads:/usr/share/nginx/html/downloads:ro
       - ./mtls:/etc/honeyforge/mtls:ro
       - hf_certs:/etc/letsencrypt

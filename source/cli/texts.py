@@ -102,17 +102,22 @@ ProfileUpdatedText = "Профиль обновлён: {profile_id}"
 ProfileDeletedText = "Профиль удалён: {profile_id}"
 ProfileCreateUsageText = (
     "нужны --file ИЛИ --name --port "
-    "[--service ssh|http|tcp_banner|postgres|redis|mysql] [--level low|medium] "
+    "[--service ssh|http|tcp_banner|postgres|redis|mysql|container] [--level low|medium] "
     "[--services postgres,redis,mysql] "
     "[--auth off|allow_all|allow_listed|second_attempt_sticky] "
     "[--username U --password P] [--banner TEXT]; "
+    "для container ещё --image и необязательный --container-port; "
     "или --name --level high --image-token vmi_..."
 )
 ProfileUpdateUsageText = "нужны --file и/или --name, --description"
 ProfileHighNeedsImageText = "для --level high нужен --image-token (см. vm-image-list)"
 ProfileHttpNeedsMediumText = "http, postgres, redis и mysql всегда medium"
 ProfileBannerNeedsLowText = "tcp_banner это только уровень low, без входа"
-ProfileServiceUnknownText = "сервис должен быть ssh, http, tcp_banner, postgres, redis или mysql"
+ProfileServiceUnknownText = "сервис должен быть ssh, http, tcp_banner, postgres, redis, mysql или container"
+ProfileContainerNeedsImageText = "для --service container нужен --image"
+ProfileContainerBadImageText = "имя образа: реестр без пробелов, например ghcr.io/org/honeypot:1.2.3"
+ProfileContainerNeedsMediumText = "container всегда medium"
+ProfileContainerUseServiceText = "container задаётся через --service container --image, не через --services"
 ProfilePortConflictText = "порт {port} уже занят ловушкой {first}, {second} туда вставать не может"
 ProfileServicesNeedNameText = "для --services нужно --name"
 ProfileOnePortText = "--port задаёт порт одной ловушки. Для нескольких порты стандартные: postgres 5432, redis 6379, mysql 3306"
@@ -144,13 +149,13 @@ SetupPersonalityPackTipText = "Пресет дозаполнит пустые ba
 
 WipeConfirmLogsText = "Удалить события и журнал аудита? (y/N)"
 WipeConfirmResetText = (
-	"Удалить профили, ловушки, pairing, команды, события и журнал? (y/N)"
+	"Удалить профили, ловушки, визиты курьеров, pairing, команды, события и журнал? (y/N)"
 )
 WipeAbortedText = "Отменено."
 LogsClearedText = "Логи очищены: события {events}, журнал {audit_log}."
 DbResetText = (
 	"База сброшена: профили {profiles}, ловушки {traps}, "
-	"pairing {pairing_sessions}, команды {trap_commands}, "
+	"визиты {courier_visits}, pairing {pairing_sessions}, команды {trap_commands}, "
 	"события {events}, журнал {audit_log}."
 )
 
@@ -217,6 +222,9 @@ SetupTrapSetBadText = "Не понял список. Пример: 1,4,5"
 SetupTrapProgressText = "Ловушка {index}/{total}"
 
 SetupAskLinkCredsText = "Связать одну учётку-приманку между выбранными сервисами"
+SetupAskContainerText = "Добавить контейнер-приманку"
+SetupAskContainerImageText = "Образ контейнера"
+SetupAskContainerPortText = "Порт внутри контейнера"
 SetupLinkCredsTipText = (
 	"Один логин/пароль на SSH/HTTP/БД мини-парка - пентестер переходит с сервиса на сервис теми же кредами."
 )
@@ -686,7 +694,8 @@ HelpText = """Команды HoneyForge CLI:
   profile-list                 - список профилей
   profile-show <id>            - показать профиль и модули
   profile-create --file f.json
-  profile-create --name N --port P --service ssh|http|tcp_banner|postgres|redis|mysql
+  profile-create --name N --port P --service ssh|http|tcp_banner|postgres|redis|mysql|container
+  profile-create --name N --service container --image ghcr.io/org/honeypot:1.2.3 --port 2222 [--container-port 2222]
   profile-create --name N --services postgres,redis,mysql
       [--level low|medium]
       [--auth off|allow_all|allow_listed|second_attempt_sticky]

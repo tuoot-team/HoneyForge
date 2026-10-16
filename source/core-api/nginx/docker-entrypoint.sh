@@ -23,7 +23,7 @@ resolve_Mtls_Ca() {
 MTLS_CA="$(resolve_Mtls_Ca)"
 
 mkdir -p /var/www/certbot /etc/nginx/conf.d /etc/letsencrypt
-rm -f /etc/nginx/conf.d/tls.conf /etc/nginx/conf.d/operator.conf
+rm -f /etc/nginx/conf.d/default.conf /etc/nginx/conf.d/tls.conf /etc/nginx/conf.d/operator.conf
 
 write_Operator_Http() {
 	cat > /etc/nginx/conf.d/operator.conf <<'EOF'
@@ -114,7 +114,28 @@ renew_Loop() {
 	done
 }
 
+write_Api_Upstream() {
+	_raw="$(echo "${API_BASE:-http://api:8000}" | tr -d '[:space:]')"
+	_raw="${_raw%/}"
+	_hostport="${_raw#http://}"
+	_hostport="${_hostport#https://}"
+	_hostport="${_hostport%%/*}"
+	case "$_hostport" in
+		""|*[!A-Za-z0-9.:_-]*)
+			echo "[api] API_BASE не разобран, upstream api:8000"
+			_hostport="api:8000"
+			;;
+	esac
+	cat > /etc/nginx/conf.d/upstream.conf <<EOF
+upstream honeyforge_api {
+	server ${_hostport};
+}
+EOF
+	echo "[api] /api -> ${_hostport}"
+}
+
 # Сначала HTTP operator, чтобы конфиг был валиден до выпуска сертификата.
+write_Api_Upstream
 write_Operator_Http
 
 nginx

@@ -1,12 +1,14 @@
+import re
 from datetime import datetime
 from enum import Enum
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.texts import (
 	MSG_PROFILE_AUTH_LIST,
+	MSG_PROFILE_BAD_IMAGE,
 	MSG_PROFILE_DELAY,
 	MSG_PROFILE_DUP_CRED,
 	MSG_PROFILE_DUP_PORT,
@@ -192,8 +194,38 @@ class MysqlServiceBlock(BaseModel):
 	modules: DbModules = Field(default_factory=DbModules)
 
 
+_CONTAINER_IMAGE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,199}$")
+
+
+class ContainerModules(BaseModel):
+	image: str
+	container_port: int = Field(default=0, ge=0, le=65535)
+
+	@field_validator("image")
+	@classmethod
+	def check_Image(cls, value: str) -> str:
+		image = value.strip()
+		if not _CONTAINER_IMAGE_RE.fullmatch(image) or ".." in image:
+			raise ValueError(MSG_PROFILE_BAD_IMAGE)
+		return image
+
+
+class ContainerServiceBlock(BaseModel):
+	type: Literal["container"] = "container"
+	id: str = Field(default="container", min_length=1)
+	port: int = Field(ge=1, le=65535)
+	enabled: bool = True
+	modules: ContainerModules
+
+
 ServiceBlock = Annotated[
-	SshServiceBlock | HttpServiceBlock | TcpBannerServiceBlock | PostgresServiceBlock | RedisServiceBlock | MysqlServiceBlock,
+	SshServiceBlock
+	| HttpServiceBlock
+	| TcpBannerServiceBlock
+	| PostgresServiceBlock
+	| RedisServiceBlock
+	| MysqlServiceBlock
+	| ContainerServiceBlock,
 	Field(discriminator="type"),
 ]
 
@@ -618,7 +650,7 @@ def _legacy_HttpModules(
 def _service_Level(service: ServiceBlock) -> InteractionLevel:
 	if isinstance(service, TcpBannerServiceBlock):
 		return InteractionLevel.low
-	if isinstance(service, (HttpServiceBlock, PostgresServiceBlock, RedisServiceBlock, MysqlServiceBlock)):
+	if isinstance(service, (HttpServiceBlock, PostgresServiceBlock, RedisServiceBlock, MysqlServiceBlock, ContainerServiceBlock)):
 		return InteractionLevel.medium
 	if isinstance(service, SshServiceBlock) and (
 		service.modules.auth.enabled or service.modules.shell.enabled

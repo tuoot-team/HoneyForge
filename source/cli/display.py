@@ -237,6 +237,10 @@ def _print_Services(services: list) -> None:
 			banner = (modules.get("banner") or "").strip()
 			if banner:
 				print(f"        banner={banner}")
+		elif name == "container":
+			image = modules.get("image") or ""
+			inside = modules.get("container_port") or port
+			print(f"        image={image} container_port={inside}")
 
 
 def _format_AuthDelay(auth: dict) -> str:

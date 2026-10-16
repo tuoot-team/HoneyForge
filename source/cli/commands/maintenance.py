@@ -41,6 +41,7 @@ def cmd_DbReset(args) -> None:
 		print(Fore.GREEN + DbResetText.format(
 			profiles=deleted.get("profiles", 0),
 			traps=deleted.get("traps", 0),
+			courier_visits=deleted.get("courier_visits", 0),
 			pairing_sessions=deleted.get("pairing_sessions", 0),
 			trap_commands=deleted.get("trap_commands", 0),
 			events=deleted.get("events", 0),

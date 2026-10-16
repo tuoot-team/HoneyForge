@@ -23,7 +23,10 @@ MSG_PROFILE_HIGH_UNAVAILABLE = (
 )
 MSG_PROFILE_LEVEL_MISMATCH = (
 	"interaction_level={declared} не совпадает с модулями (фактически {actual}). "
-	"low - только баннер, medium - вход, shell, http или база, high - emulation VM"
+	"low - только баннер, medium - вход, shell, http, база или контейнер, high - emulation VM"
+)
+MSG_PROFILE_BAD_IMAGE = (
+	"имя образа: реестр без пробелов, например ghcr.io/org/honeypot:1.2.3"
 )
 MSG_PROFILE_DUP_PORT = "порты включённых сервисов должны быть уникальными"
 MSG_PROFILE_DUP_SERVICE_ID = "id сервисов должны быть уникальными"

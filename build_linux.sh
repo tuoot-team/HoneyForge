@@ -37,10 +37,43 @@ build_Honeypots() {
 	echo "[build] honeypots ok: agent + courier"
 }
 
-# Кэш, локальная БД и .env в архив центра не входят.
+# Панель кладётся рядом с ядром: из core-api путь ../web/dist уже смотрит nginx.
+build_Web() {
+	local src_dir="${SOURCE_ROOT}/web"
+	local out_dir="${BUILD_ROOT}/web"
+	if ! command -v npm >/dev/null 2>&1; then
+		echo "[build] нужен npm, чтобы собрать панель" >&2
+		exit 1
+	fi
+	echo "[build] web -> ${out_dir}"
+	(
+		cd "${src_dir}"
+		if [[ ! -d node_modules ]]; then
+			npm ci
+		fi
+		# Пример важнее локального .env: в сборку не попадёт чужой API_BASE.
+		set -a
+		# shellcheck disable=SC1091
+		source .env.example
+		set +a
+		npm run build
+	)
+	rm -rf "${out_dir}"
+	mkdir -p "${out_dir}"
+	cp -a "${src_dir}/dist" "${out_dir}/dist"
+	cp "${src_dir}/.env.example" "${out_dir}/.env"
+	echo "[build] web ok: ${out_dir}/dist"
+}
+
+# Кэш, локальная БД и рабочий .env в архив не входят. .env берётся из примера.
 pack_CoreApi() {
 	local stage="${BUILD_ROOT}/core-api"
 	local archive="${BUILD_ROOT}/core-api.tar.gz"
+	local panel="${BUILD_ROOT}/web/dist/index.html"
+	if [[ ! -f "${panel}" ]]; then
+		echo "[build] нет панели: ${panel}" >&2
+		exit 1
+	fi
 	echo "[build] core-api -> ${stage}"
 	rm -rf "${stage}"
 	mkdir -p "${stage}"
@@ -61,13 +94,15 @@ pack_CoreApi() {
 	chmod +x "${stage}/downloads/agent" "${stage}/downloads/courier"
 	find "${stage}" -type d -name '__pycache__' -prune -exec rm -rf {} +
 	find "${stage}" -type f \( -name '*.pyc' -o -name '.env' -o -name 'honeyforge_local.db' \) -delete
+	cp "${SOURCE_ROOT}/core-api/.env.example" "${stage}/.env"
 	echo "[build] archive -> ${archive}"
 	rm -f "${archive}"
-	tar -C "${BUILD_ROOT}" -czf "${archive}" core-api
-	rm -rf "${stage}"
+	tar -C "${BUILD_ROOT}" -czf "${archive}" core-api web
+	rm -rf "${stage}" "${BUILD_ROOT}/web"
 }
 
 build_Honeypots
+build_Web
 pack_CoreApi
 
 echo "[build] готово: ${BUILD_ROOT}"

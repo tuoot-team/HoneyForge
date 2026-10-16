@@ -108,16 +108,22 @@ type DbModules struct {
 }
 
 type ServiceBlock struct {
-	Type         string           `json:"type"`
-	ID           string           `json:"id"`
-	Port         int              `json:"port"`
-	Enabled      *bool            `json:"enabled"`
-	SshModules   SshModules       `json:"-"`
-	HttpModules  HttpModules      `json:"-"`
-	TcpModules   TcpBannerModules `json:"-"`
-	PgModules    DbModules        `json:"-"`
-	RedisModules DbModules        `json:"-"`
-	MysqlModules DbModules        `json:"-"`
+	Type             string           `json:"type"`
+	ID               string           `json:"id"`
+	Port             int              `json:"port"`
+	Enabled          *bool            `json:"enabled"`
+	SshModules       SshModules       `json:"-"`
+	HttpModules      HttpModules      `json:"-"`
+	TcpModules       TcpBannerModules `json:"-"`
+	PgModules        DbModules        `json:"-"`
+	RedisModules     DbModules        `json:"-"`
+	MysqlModules     DbModules        `json:"-"`
+	ContainerModules ContainerModules `json:"-"`
+}
+
+type ContainerModules struct {
+	Image         string `json:"image"`
+	ContainerPort int    `json:"container_port"`
 }
 
 func (s ServiceBlock) IsEnabled() bool {
@@ -159,6 +165,8 @@ func (s *ServiceBlock) UnmarshalJSON(data []byte) error {
 		return json.Unmarshal(wire.Modules, &s.RedisModules)
 	case "mysql":
 		return json.Unmarshal(wire.Modules, &s.MysqlModules)
+	case "container":
+		return json.Unmarshal(wire.Modules, &s.ContainerModules)
 	}
 	return nil
 }

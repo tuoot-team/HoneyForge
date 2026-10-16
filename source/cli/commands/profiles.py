@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from colorama import Fore, Style
@@ -12,6 +13,10 @@ from texts import (
 	ProfileAuthNeedsMediumText,
 	ProfileAuthOnBannerText,
 	ProfileBannerNeedsLowText,
+	ProfileContainerBadImageText,
+	ProfileContainerNeedsImageText,
+	ProfileContainerNeedsMediumText,
+	ProfileContainerUseServiceText,
 	ProfileCreateUsageText,
 	ProfileCreatedText,
 	ProfileDelayOrderText,
@@ -44,6 +49,15 @@ DEFAULT_DB_BANNERS = {
 	"mysql": "5.7.42-log",
 	"redis": "6.2.14",
 }
+
+_CONTAINER_IMAGE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,199}$")
+
+
+def check_ContainerImage(image: str) -> str:
+	image = (image or "").strip()
+	if not _CONTAINER_IMAGE_RE.fullmatch(image) or ".." in image:
+		raise ValueError(ProfileContainerBadImageText)
+	return image
 
 
 def _load_Body_FromFile(path: str) -> dict:
@@ -154,13 +168,49 @@ def _build_HighBody(args) -> dict:
 	}
 
 
+def _build_ContainerBody(args) -> dict:
+	level_arg = (args.level or "").lower()
+	if level_arg and level_arg != "medium":
+		raise ValueError(ProfileContainerNeedsMediumText)
+	if not (args.image or "").strip():
+		raise ValueError(ProfileContainerNeedsImageText)
+	image = check_ContainerImage(args.image)
+	container_port = args.container_port or args.port
+	return {
+		"name": args.name,
+		"description": args.description or "",
+		"interaction_level": "medium",
+		"blocks": {
+			"services": [{
+				"type": "container",
+				"id": "container-1",
+				"port": args.port,
+				"enabled": True,
+				"modules": {
+					"image": image,
+					"container_port": container_port,
+				},
+			}],
+			"credentials": [],
+			"logging": {
+				"capture_credentials": True,
+				"capture_payloads": True,
+				"capture_source_meta": True,
+			},
+			"mask": {},
+		},
+	}
+
+
 def _build_SimpleBody(args) -> dict:
 	level_arg = (args.level or "").lower()
-	if level_arg == "high":
-		return _build_HighBody(args)
 	service_name = (args.service or "ssh").lower()
 	if service_name == "https":
 		service_name = "http"
+	if service_name == "container":
+		return _build_ContainerBody(args)
+	if level_arg == "high":
+		return _build_HighBody(args)
 	if service_name not in KNOWN_SERVICES:
 		raise ValueError(ProfileServiceUnknownText)
 
@@ -332,6 +382,8 @@ def _build_MultiBody(args) -> dict:
 	for name in raw_names:
 		if name == "https":
 			name = "http"
+		if name == "container":
+			raise ValueError(ProfileContainerUseServiceText)
 		if name not in KNOWN_SERVICES:
 			raise ValueError(ProfileServiceUnknownText)
 		names.append(name)
@@ -396,7 +448,7 @@ def cmd_ProfileCreate(args) -> None:
 				print(Fore.RED + ProfileServicesNeedNameText + Style.RESET_ALL)
 				return
 			body = _build_MultiBody(args)
-		elif (args.level or "").lower() == "high":
+		elif (args.level or "").lower() == "high" and (args.service or "").lower() != "container":
 			if not args.name:
 				print(Fore.RED + ProfileCreateUsageText + Style.RESET_ALL)
 				return

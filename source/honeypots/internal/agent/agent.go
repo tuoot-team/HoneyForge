@@ -561,6 +561,15 @@ func (a *Agent) run_Services(ctx context.Context) {
 					a.Debug,
 					tokens,
 				)
+			case "container":
+				serviceErr = mid.Start_Container(
+					ctx,
+					port,
+					service.ID,
+					service.ContainerModules,
+					a.On_Event,
+					a.Debug,
+				)
 			default:
 				serviceErr = fmt.Errorf("неизвестный тип сервиса: %s", service.Type)
 			}

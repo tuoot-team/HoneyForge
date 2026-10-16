@@ -8,6 +8,7 @@ from app.domains.maintenance.schemas import WipeOut
 
 # Сначала дочерние таблицы, потом те, на которые ссылаются.
 RESET_TABLES = (
+	"courier_visits",
 	"trap_commands",
 	"pairing_sessions",
 	"events",
